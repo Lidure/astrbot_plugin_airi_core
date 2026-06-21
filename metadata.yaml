@@ -1,5 +1,5 @@
 name: astrbot_plugin_airi_core
-display_name: Airi 核心工具🤖
+display_name: Airi 核心工具🌸
 short_desc: Airi 核心 LLM 工具集，提供禁言等群管理能力。
 desc: Airi 核心 LLM 工具集，支持在群聊中通过 LLM 自动禁言违规用户，禁言时长可配置。
 version: v1.0.0
