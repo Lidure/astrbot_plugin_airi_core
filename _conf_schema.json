@@ -1,0 +1,20 @@
+{
+  "mute_tool_enabled": {
+    "type": "bool",
+    "description": "启用 LLM 禁言工具",
+    "hint": "开启后，LLM 可以在群聊中禁言违规用户。仅在 OneBot (aiocqhttp) 平台生效，需要 bot 是群管理员。",
+    "default": false
+  },
+  "mute_duration_min": {
+    "type": "int",
+    "description": "禁言最短时间（分钟）",
+    "hint": "LLM 禁言工具允许的最短禁言时长，范围 1~60，默认 1。",
+    "default": 1
+  },
+  "mute_duration_max": {
+    "type": "int",
+    "description": "禁言最长时间（分钟）",
+    "hint": "LLM 禁言工具允许的最长禁言时长，范围 1~43200（30天），默认 10。",
+    "default": 10
+  }
+}
