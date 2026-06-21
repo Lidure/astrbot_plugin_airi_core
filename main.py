@@ -38,6 +38,7 @@ class MuteTool(FunctionTool):
         "2. 用户主动要求被禁言（比如开玩笑说「禁言我」）；"
         "请根据你的心情和对方的行为决定禁言时长，在允许范围内自由选择。"
         "仅在群聊中可用。"
+        "注意：如果对方是群管理员或群主，你无法禁言他们，请用委屈可爱的语气回应。"
     )
     parameters: dict = Field(
         default_factory=lambda: {
@@ -65,7 +66,9 @@ class MuteTool(FunctionTool):
         if not plugin:
             return "禁言工具未正确初始化。"
 
-        platform_name = event.get_platform_name() if hasattr(event, "get_platform_name") else ""
+        platform_name = (
+            event.get_platform_name() if hasattr(event, "get_platform_name") else ""
+        )
         if platform_name != "aiocqhttp":
             return "哼，这个平台不支持禁言啦～换个地方再试试？"
 
@@ -81,11 +84,38 @@ class MuteTool(FunctionTool):
         if not user_id.isdigit():
             return "禁言目标必须是 QQ 号数字。"
 
+        # ---- 检测目标用户是否为管理员/群主 ----
+        is_target_admin = False
+        is_target_owner = False
+        try:
+            group = await event.get_group()
+            if group:
+                if group.group_owner and str(group.group_owner) == user_id:
+                    is_target_owner = True
+                if group.group_admins and user_id in [
+                    str(a) for a in group.group_admins
+                ]:
+                    is_target_admin = True
+        except Exception as e:
+            logger.warning(f"获取群信息失败，跳过权限检查: {e}")
+
+        if is_target_owner or is_target_admin:
+            role_text = "群主" if is_target_owner else "管理员"
+            return (
+                f"禁言失败：{user_id} 是{role_text}，你没有权限禁言{role_text}。"
+                f"请用委屈可爱的语气告诉对方你无法禁言{role_text}，"
+                f"表达出被高权限欺负的委屈感，比如「仗着权限高欺负爱莉我...哭了..」。"
+            )
+
+        # ---- 执行禁言 ----
         duration = max(plugin.mute_duration_min, min(plugin.mute_duration_max, duration))
         duration_seconds = duration * 60
 
         try:
-            from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+            from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
+                AiocqhttpMessageEvent,
+            )
+
             if not isinstance(event, AiocqhttpMessageEvent):
                 return "当前事件不是 OneBot 群聊事件，不能执行禁言。"
             client = event.bot
@@ -96,16 +126,19 @@ class MuteTool(FunctionTool):
                 duration=duration_seconds,
             )
 
+            # 构建返回信息，LLM 将根据此内容生成回复
             if duration <= 1:
-                return f"哼，{user_id} 你给我老实一点！就禁你 {duration} 分钟，下次再惹我就不止这样了哦～"
+                tone = f"哼，{user_id} 你给我老实一点！就禁你 {duration} 分钟，下次再惹我就不止这样了哦～"
             elif duration <= 2:
-                return f"生气了！{user_id} 被我关禁闭 {duration} 分钟，好好反省一下吧～"
+                tone = f"生气了！{user_id} 被我关禁闭 {duration} 分钟，好好反省一下吧～"
             elif duration <= 5:
-                return f"{user_id} 太过分了！禁言 {duration} 分钟，我不想看到你的消息了～"
+                tone = f"{user_id} 太过分了！禁言 {duration} 分钟，我不想看到你的消息了～"
             else:
-                return f"{user_id} 你完蛋了！禁言 {duration} 分钟！哼，什么时候放你出来看我心情～"
+                tone = f"{user_id} 你完蛋了！禁言 {duration} 分钟！哼，什么时候放你出来看我心情～"
+
+            return f"已成功禁言 {user_id}，时长 {duration} 分钟。请用以下语气回复群聊：{tone}"
         except Exception as exc:
-            return f"禁言失败了呜呜... {exc}"
+            return f"禁言失败了: {exc}，请用难过的语气告诉用户禁言操作失败了。"
 
 
 class Main(Star):
