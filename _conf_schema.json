@@ -16,5 +16,23 @@
     "description": "禁言最长时间（分钟）",
     "hint": "LLM 禁言工具允许的最长禁言时长，范围 1~43200（30天），默认 10。",
     "default": 10
+  },
+  "welcome_enabled": {
+    "type": "bool",
+    "description": "启用入群欢迎消息",
+    "hint": "开启后，当 bot 进入新的群聊时会自动发送欢迎消息。",
+    "default": false
+  },
+  "welcome_message": {
+    "type": "text",
+    "description": "欢迎消息内容",
+    "hint": "Bot 进入新群聊时发送的欢迎消息，支持纯文本。",
+    "default": "你好！我是 Airi，很高兴加入这个群聊！"
+  },
+  "welcome_images": {
+    "type": "list",
+    "description": "欢迎图片列表",
+    "hint": "Bot 进入新群聊时发送的图片，支持本地文件路径或 URL 地址。",
+    "default": []
   }
 }

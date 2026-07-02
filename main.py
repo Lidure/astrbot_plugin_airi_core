@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 
 from astrbot.api import logger
-from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.event import AstrMessageEvent, filter, MessageChain
 from astrbot.api.star import Context, Star
 from astrbot.core.agent.tool import FunctionTool
+import astrbot.api.message_components as Comp
 
 
 PLUGIN_NAME = "astrbot_plugin_airi_core"
@@ -152,6 +154,11 @@ class Main(Star):
         if self.mute_duration_min > self.mute_duration_max:
             self.mute_duration_min, self.mute_duration_max = self.mute_duration_max, self.mute_duration_min
 
+        # 欢迎消息配置
+        self.welcome_enabled = bool(self.config.get("welcome_enabled", False))
+        self.welcome_message = self.config.get("welcome_message", "你好！我是 Airi，很高兴加入这个群聊！")
+        self.welcome_images = self.config.get("welcome_images", [])
+
         if self.mute_tool_enabled:
             self.context.add_llm_tools(MuteTool(plugin=self))
 
@@ -159,7 +166,46 @@ class Main(Star):
         logger.info(
             f"Airi 核心工具已加载 | 禁言工具: {'启用' if self.mute_tool_enabled else '未启用'}"
             f" | 时长范围: {self.mute_duration_min}~{self.mute_duration_max} 分钟"
+            f" | 入群欢迎: {'启用' if self.welcome_enabled else '未启用'}"
         )
 
     async def terminate(self):
         pass
+
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def on_group_member_change(self, event: AstrMessageEvent):
+        if not self.welcome_enabled:
+            return
+
+        raw_message = event.message_obj.raw_message
+        if not isinstance(raw_message, dict) or raw_message.get("post_type") != "notice":
+            return
+
+        notice_type = raw_message.get("notice_type")
+        if notice_type != "group_increase":
+            return
+
+        self_id = str(raw_message.get("self_id"))
+        target_qq = str(raw_message.get("user_id"))
+        if target_qq != self_id:
+            return
+
+        group_id = str(raw_message.get("group_id"))
+
+        chain = []
+
+        if self.welcome_message:
+            chain.append(Comp.Plain(self.welcome_message))
+
+        for img in self.welcome_images:
+            if not img:
+                continue
+            if img.startswith("http://") or img.startswith("https://"):
+                chain.append(Comp.Image.fromURL(img))
+            elif os.path.isfile(img):
+                chain.append(Comp.Image.fromFileSystem(img))
+            else:
+                logger.warning(f"欢迎图片路径无效或无法访问: {img}")
+
+        if chain:
+            yield event.chain_result(chain)
