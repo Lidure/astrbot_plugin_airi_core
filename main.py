@@ -172,6 +172,32 @@ class Main(Star):
     async def terminate(self):
         pass
 
+    def _build_welcome_chain(self) -> list:
+        """构建欢迎消息链，供入群欢迎和 help 命令复用。"""
+        chain = []
+
+        if self.welcome_message:
+            chain.append(Comp.Plain(self.welcome_message))
+
+        for img in self.welcome_images:
+            if not img:
+                continue
+            if img.startswith("http://") or img.startswith("https://"):
+                chain.append(Comp.Image.fromURL(img))
+            elif os.path.isfile(img):
+                chain.append(Comp.Image.fromFileSystem(img))
+            else:
+                logger.warning(f"欢迎图片路径无效或无法访问: {img}")
+
+        return chain
+
+    @filter.command("help")
+    async def help(self, event: AstrMessageEvent):
+        """发送帮助内容（复用配置的欢迎消息和欢迎图片）。"""
+        chain = self._build_welcome_chain()
+        if chain:
+            yield event.chain_result(chain)
+
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_group_member_change(self, event: AstrMessageEvent):
         if not self.welcome_enabled:
@@ -192,20 +218,7 @@ class Main(Star):
 
         group_id = str(raw_message.get("group_id"))
 
-        chain = []
-
-        if self.welcome_message:
-            chain.append(Comp.Plain(self.welcome_message))
-
-        for img in self.welcome_images:
-            if not img:
-                continue
-            if img.startswith("http://") or img.startswith("https://"):
-                chain.append(Comp.Image.fromURL(img))
-            elif os.path.isfile(img):
-                chain.append(Comp.Image.fromFileSystem(img))
-            else:
-                logger.warning(f"欢迎图片路径无效或无法访问: {img}")
+        chain = self._build_welcome_chain()
 
         if chain:
             yield event.chain_result(chain)
