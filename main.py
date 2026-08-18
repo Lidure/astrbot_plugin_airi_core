@@ -172,6 +172,17 @@ class Main(Star):
     async def terminate(self):
         pass
 
+    def _resolve_uploaded_image(self, image_path: str) -> str | None:
+        """解析 AstrBot 上传配置返回的绝对或相对文件路径。"""
+        candidates = [image_path]
+        if not os.path.isabs(image_path):
+            candidates.append(os.path.join(os.path.dirname(__file__), image_path))
+
+        for candidate in candidates:
+            if os.path.isfile(candidate):
+                return os.path.abspath(candidate)
+        return None
+
     def _build_welcome_chain(self) -> list:
         """构建欢迎消息链，供入群欢迎和 help 命令复用。"""
         chain = []
@@ -182,8 +193,9 @@ class Main(Star):
         for img in self.welcome_images:
             if not img:
                 continue
-            if os.path.isfile(img):
-                chain.append(Comp.Image.fromFileSystem(img))
+            image_path = self._resolve_uploaded_image(str(img))
+            if image_path:
+                chain.append(Comp.Image.fromFileSystem(image_path))
             else:
                 logger.warning(f"欢迎图片文件无效或无法访问: {img}")
 
