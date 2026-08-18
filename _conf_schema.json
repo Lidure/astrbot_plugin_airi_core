@@ -30,9 +30,10 @@
     "default": "你好！我是 Airi，很高兴加入这个群聊！"
   },
   "welcome_images": {
-    "type": "list",
+    "type": "file",
     "description": "欢迎图片列表",
-    "hint": "Bot 进入新群聊时发送的图片，支持本地文件路径或 URL 地址。",
-    "default": []
+    "hint": "直接上传 Bot 进入新群聊或使用 help 命令时发送的图片，支持多张图片。",
+    "default": [],
+    "file_types": ["jpg", "jpeg", "png", "gif", "webp"]
   }
 }

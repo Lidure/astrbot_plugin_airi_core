@@ -182,12 +182,10 @@ class Main(Star):
         for img in self.welcome_images:
             if not img:
                 continue
-            if img.startswith("http://") or img.startswith("https://"):
-                chain.append(Comp.Image.fromURL(img))
-            elif os.path.isfile(img):
+            if os.path.isfile(img):
                 chain.append(Comp.Image.fromFileSystem(img))
             else:
-                logger.warning(f"欢迎图片路径无效或无法访问: {img}")
+                logger.warning(f"欢迎图片文件无效或无法访问: {img}")
 
         return chain
 
