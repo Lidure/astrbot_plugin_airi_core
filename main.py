@@ -7,7 +7,7 @@ from pydantic import Field
 from pydantic.dataclasses import dataclass
 
 from astrbot.api import logger
-from astrbot.api.event import AstrMessageEvent, filter, MessageChain
+from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star
 from astrbot.core.agent.tool import FunctionTool
 import astrbot.api.message_components as Comp
@@ -176,37 +176,52 @@ class Main(Star):
         """解析 AstrBot 上传配置返回的绝对或相对文件路径。"""
         candidates = [image_path]
         if not os.path.isabs(image_path):
-            candidates.append(os.path.join(os.path.dirname(__file__), image_path))
+            plugin_dir = os.path.dirname(__file__)
+            candidates.append(os.path.join(plugin_dir, image_path))
+
+            # AstrBot 的 file 配置通常返回 files/...，实际文件位于
+            # data/plugin_data/<plugin_name>/ 下，而不是插件源码目录。
+            data_dir = os.path.dirname(os.path.dirname(plugin_dir))
+            candidates.append(
+                os.path.join(data_dir, "plugin_data", PLUGIN_NAME, image_path)
+            )
 
         for candidate in candidates:
             if os.path.isfile(candidate):
                 return os.path.abspath(candidate)
         return None
 
-    def _build_welcome_chain(self) -> list:
-        """构建欢迎消息链，供入群欢迎和 help 命令复用。"""
-        chain = []
-
-        if self.welcome_message:
-            chain.append(Comp.Plain(self.welcome_message))
-
+    def _get_welcome_image_paths(self) -> list[str]:
+        """获取欢迎图片的绝对路径。"""
+        image_paths = []
         for img in self.welcome_images:
             if not img:
                 continue
             image_path = self._resolve_uploaded_image(str(img))
             if image_path:
-                chain.append(Comp.Image.fromFileSystem(image_path))
+                image_paths.append(image_path)
             else:
                 logger.warning(f"欢迎图片文件无效或无法访问: {img}")
 
-        return chain
+        return image_paths
+
+    async def _send_welcome(self, event: AstrMessageEvent):
+        """将欢迎文字和图片组合成一条消息发送。"""
+        chain = []
+        if self.welcome_message:
+            chain.append(Comp.Plain(self.welcome_message))
+
+        for image_path in self._get_welcome_image_paths():
+            chain.append(Comp.Image.fromFileSystem(image_path))
+
+        if chain:
+            yield event.chain_result(chain)
 
     @filter.command("help")
     async def help(self, event: AstrMessageEvent):
         """发送帮助内容（复用配置的欢迎消息和欢迎图片）。"""
-        chain = self._build_welcome_chain()
-        if chain:
-            yield event.chain_result(chain)
+        async for result in self._send_welcome(event):
+            yield result
 
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_group_member_change(self, event: AstrMessageEvent):
@@ -228,7 +243,5 @@ class Main(Star):
 
         group_id = str(raw_message.get("group_id"))
 
-        chain = self._build_welcome_chain()
-
-        if chain:
-            yield event.chain_result(chain)
+        async for result in self._send_welcome(event):
+            yield result
