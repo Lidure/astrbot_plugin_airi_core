@@ -55,6 +55,36 @@ class DailyStatsTests(unittest.TestCase):
             self.assertEqual(summary["entries"], [("u1", 2), ("u2", 1)])
             self.assertEqual(summary["total_pokes"], 3)
 
+    def test_group_summary_includes_group_total_rank(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = poke_stats.PokeStatsStore(Path(tmp) / "poke_stats.json")
+            now = datetime(2026, 9, 20, 10, 0, 0)
+            for _ in range(5):
+                store.record("g1", "u1", now=now)
+            for _ in range(8):
+                store.record("g2", "u2", now=now)
+            for _ in range(3):
+                store.record("g3", "u3", now=now)
+
+            daily = store.daily_group_summary("g1", now=now)
+            self.assertEqual(daily["group_total_rank"], 2)
+            self.assertEqual(daily["group_total_groups"], 3)
+
+            history = store.group_summary("g1")
+            self.assertEqual(history["group_total_rank"], 2)
+            self.assertEqual(history["group_total_groups"], 3)
+
+    def test_group_total_rank_uses_group_id_as_stable_tiebreaker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = poke_stats.PokeStatsStore(Path(tmp) / "poke_stats.json")
+            now = datetime(2026, 9, 20, 10, 0, 0)
+            for _ in range(4):
+                store.record("g2", "u2", now=now)
+                store.record("g1", "u1", now=now)
+
+            self.assertEqual(store.daily_group_summary("g1", now=now)["group_total_rank"], 1)
+            self.assertEqual(store.daily_group_summary("g2", now=now)["group_total_rank"], 2)
+
     def test_legacy_json_keeps_history_and_starts_daily_empty(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "poke_stats.json"
@@ -89,6 +119,9 @@ class MainDailyRankingWiringTests(unittest.TestCase):
         self.assertIn("self._poke_store.group_summary", source)
         self.assertIn("self._poke_store.global_summary", source)
         self.assertIn("每日 04:00 刷新", source)
+        self.assertIn("group_total_rank", source)
+        self.assertIn("群总榜", source)
+        self.assertNotIn("TOP {self.poke_rank_limit}", source)
 
 
 if __name__ == "__main__":
