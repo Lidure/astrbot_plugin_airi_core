@@ -15,7 +15,12 @@ from astrbot.api.star import Context, Star
 from astrbot.core.agent.tool import FunctionTool
 import astrbot.api.message_components as Comp
 
-from poke_stats import PokeStatsStore, parse_bot_poke_notice, render_poke_rank_image
+from poke_stats import (
+    PokeStatsStore,
+    extract_onebot_profile_name,
+    parse_bot_poke_notice,
+    render_poke_rank_image,
+)
 
 
 PLUGIN_NAME = "astrbot_plugin_airi_core"
@@ -264,6 +269,61 @@ class Main(Star):
         except OSError:
             pass
 
+    def _rank_user_ids(self, summary: dict[str, Any]) -> list[str]:
+        user_ids = [str(user_id) for user_id, _ in summary.get("entries", [])[: self.poke_rank_limit]]
+        target_user_id = summary.get("target_user_id")
+        if target_user_id is not None and str(target_user_id) not in user_ids:
+            user_ids.append(str(target_user_id))
+        return user_ids
+
+    async def _resolve_display_names(
+        self,
+        event: AstrMessageEvent,
+        summary: dict[str, Any],
+        *,
+        group_id: str | None = None,
+    ) -> dict[str, str]:
+        bot = getattr(event, "bot", None)
+        api = getattr(bot, "api", None)
+        call_action = getattr(api, "call_action", None)
+        if not callable(call_action):
+            return {}
+
+        semaphore = asyncio.Semaphore(5)
+
+        async def resolve_one(user_id: str) -> tuple[str, str]:
+            async with semaphore:
+                if group_id is not None:
+                    try:
+                        profile = await call_action(
+                            "get_group_member_info",
+                            group_id=int(group_id),
+                            user_id=int(user_id),
+                            no_cache=False,
+                        )
+                        name = extract_onebot_profile_name(profile, prefer_card=True)
+                        if name:
+                            return user_id, name
+                    except Exception as exc:
+                        logger.debug(f"获取群成员昵称失败 user={user_id}: {exc}")
+
+                try:
+                    profile = await call_action(
+                        "get_stranger_info",
+                        user_id=int(user_id),
+                        no_cache=False,
+                    )
+                    return user_id, extract_onebot_profile_name(profile, prefer_card=False)
+                except Exception as exc:
+                    logger.debug(f"获取 QQ 昵称失败 user={user_id}: {exc}")
+                    return user_id, ""
+
+        user_ids = self._rank_user_ids(summary)
+        if not user_ids:
+            return {}
+        resolved = await asyncio.gather(*(resolve_one(user_id) for user_id in user_ids))
+        return {user_id: name for user_id, name in resolved}
+
     async def _render_rank_result(
         self,
         event: AstrMessageEvent,
@@ -314,11 +374,14 @@ class Main(Star):
 
         async with self._poke_lock:
             summary = self._poke_store.group_summary(str(group_id), target_qq)
+        summary["display_names"] = await self._resolve_display_names(
+            event, summary, group_id=str(group_id)
+        )
 
         result = await self._render_rank_result(
             event,
             title="Airi Poke 排行榜",
-            subtitle=f"当前群 {group_id} · TOP {self.poke_rank_limit}",
+            subtitle=f"当前群 · TOP {self.poke_rank_limit}",
             summary=summary,
             scope=f"group_{group_id}",
         )
@@ -338,6 +401,7 @@ class Main(Star):
 
         async with self._poke_lock:
             summary = self._poke_store.global_summary(target_qq)
+        summary["display_names"] = await self._resolve_display_names(event, summary)
 
         result = await self._render_rank_result(
             event,
