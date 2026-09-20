@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from functools import lru_cache
@@ -27,6 +28,37 @@ def parse_bot_poke_notice(raw_message: Any) -> tuple[str, str] | None:
     if str(target_id) != str(self_id) or str(user_id) == str(self_id):
         return None
     return str(group_id), str(user_id)
+
+
+def extract_onebot_profile_name(payload: Any, *, prefer_card: bool) -> str:
+    if not isinstance(payload, dict):
+        data = getattr(payload, "data", None)
+        if not isinstance(data, dict):
+            return ""
+    else:
+        nested = payload.get("data")
+        data = nested if isinstance(nested, dict) else payload
+
+    nickname = str(data.get("nickname") or "").strip()
+    card = str(data.get("card") or "").strip()
+    if prefer_card and card:
+        return card
+    return nickname
+
+
+def privacy_safe_label(user_id: str, preferred_name: str | None = None) -> str:
+    name = str(preferred_name or "").strip()
+    if name:
+        return name
+    digest = hashlib.sha256(str(user_id).encode("utf-8")).hexdigest()[:4].upper()
+    return f"匿名用户 {digest}"
+
+
+def _truncate_label(label: str, max_chars: int = 14) -> str:
+    label = str(label or "").strip()
+    if len(label) <= max_chars:
+        return label
+    return label[: max_chars - 1] + "…"
 
 
 class PokeStatsStore:
@@ -175,6 +207,7 @@ def render_poke_rank_image(
     entries = list(summary.get("entries", []))[: max(1, int(rank_limit))]
     target_user_id = summary.get("target_user_id")
     target_user_count = summary.get("target_user_count")
+    display_names = summary.get("display_names") or {}
 
     width = 960
     top_margin = 32
@@ -245,7 +278,9 @@ def render_poke_rank_image(
             rb = draw.textbbox((0, 0), rank_text, font=rank_font)
             draw.text((badge_x + 20 - (rb[2] - rb[0]) / 2, badge_y + 20 - (rb[3] - rb[1]) / 2 - 1), rank_text, font=rank_font, fill="#4B4051")
 
-            draw.text((left + 102, y + 13), f"QQ {user_id}", font=body_font, fill="#3B3242")
+            display_name = privacy_safe_label(user_id, display_names.get(str(user_id)))
+            display_name = _truncate_label(display_name)
+            draw.text((left + 102, y + 13), display_name, font=body_font, fill="#3B3242")
 
             bar_left = left + 420
             bar_right = right - 150
@@ -264,7 +299,9 @@ def render_poke_rank_image(
     if target_user_id:
         draw.rounded_rectangle((left, current_y, right, current_y + query_h), radius=24, fill="#FFF0F6")
         draw.text((left + 30, current_y + 20), "个人查询", font=small_font, fill="#A95E7A")
-        query_text = f"QQ {target_user_id}  累计 {int(target_user_count or 0)} 次"
+        target_name = privacy_safe_label(target_user_id, display_names.get(str(target_user_id)))
+        target_name = _truncate_label(target_name, 16)
+        query_text = f"{target_name}  累计 {int(target_user_count or 0)} 次"
         qb = draw.textbbox((0, 0), query_text, font=body_font)
         draw.text((right - 30 - (qb[2] - qb[0]), current_y + 27), query_text, font=body_font, fill="#D94E83")
         current_y += query_h + gap
