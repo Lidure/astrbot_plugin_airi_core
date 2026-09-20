@@ -2,6 +2,6 @@ name: astrbot_plugin_airi_core
 display_name: Airi 核心工具🌸
 short_desc: Airi 核心辅助插件，提供群管理、入群欢迎与 Poke 图片排行榜。
 desc: Airi 核心辅助插件，支持 LLM 群禁言、Bot 入群欢迎，以及按 QQ 独立累计的群内/全局 Poke 统计与图片排行榜。
-version: v1.2.0
+version: v1.2.1
 author: Lidure
 repo: https://github.com/Lidure/astrbot_plugin_airi_core
