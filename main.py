@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import os
+import time
+from pathlib import Path
 from typing import Any
 
 from pydantic import Field
@@ -11,6 +14,8 @@ from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star
 from astrbot.core.agent.tool import FunctionTool
 import astrbot.api.message_components as Comp
+
+from poke_stats import PokeStatsStore, parse_bot_poke_notice, render_poke_rank_image
 
 
 PLUGIN_NAME = "astrbot_plugin_airi_core"
@@ -86,7 +91,6 @@ class MuteTool(FunctionTool):
         if not user_id.isdigit():
             return "禁言目标必须是 QQ 号数字。"
 
-        # ---- 检测目标用户是否为管理员/群主 ----
         is_target_admin = False
         is_target_owner = False
         try:
@@ -94,12 +98,10 @@ class MuteTool(FunctionTool):
             if group:
                 if group.group_owner and str(group.group_owner) == user_id:
                     is_target_owner = True
-                if group.group_admins and user_id in [
-                    str(a) for a in group.group_admins
-                ]:
+                if group.group_admins and user_id in [str(a) for a in group.group_admins]:
                     is_target_admin = True
-        except Exception as e:
-            logger.warning(f"获取群信息失败，跳过权限检查: {e}")
+        except Exception as exc:
+            logger.warning(f"获取群信息失败，跳过权限检查: {exc}")
 
         if is_target_owner or is_target_admin:
             role_text = "群主" if is_target_owner else "管理员"
@@ -109,7 +111,6 @@ class MuteTool(FunctionTool):
                 f"表达出被高权限欺负的委屈感，比如「仗着权限高欺负爱莉我...哭了..」。"
             )
 
-        # ---- 执行禁言 ----
         duration = max(plugin.mute_duration_min, min(plugin.mute_duration_max, duration))
         duration_seconds = duration * 60
 
@@ -128,7 +129,6 @@ class MuteTool(FunctionTool):
                 duration=duration_seconds,
             )
 
-            # 构建返回信息，LLM 将根据此内容生成回复
             if duration <= 1:
                 tone = f"哼，{user_id} 你给我老实一点！就禁你 {duration} 分钟，下次再惹我就不止这样了哦～"
             elif duration <= 2:
@@ -149,15 +149,31 @@ class Main(Star):
         self.config = config or {}
 
         self.mute_tool_enabled = bool(self.config.get("mute_tool_enabled", False))
-        self.mute_duration_min = max(1, min(60, int(self.config.get("mute_duration_min", 1))))
-        self.mute_duration_max = max(1, min(43200, int(self.config.get("mute_duration_max", 10))))
+        self.mute_duration_min = max(
+            1, min(60, int(self.config.get("mute_duration_min", 1)))
+        )
+        self.mute_duration_max = max(
+            1, min(43200, int(self.config.get("mute_duration_max", 10)))
+        )
         if self.mute_duration_min > self.mute_duration_max:
-            self.mute_duration_min, self.mute_duration_max = self.mute_duration_max, self.mute_duration_min
+            self.mute_duration_min, self.mute_duration_max = (
+                self.mute_duration_max,
+                self.mute_duration_min,
+            )
 
-        # 欢迎消息配置
         self.welcome_enabled = bool(self.config.get("welcome_enabled", False))
-        self.welcome_message = self.config.get("welcome_message", "你好！我是 Airi，很高兴加入这个群聊！")
+        self.welcome_message = self.config.get(
+            "welcome_message", "你好！我是 Airi，很高兴加入这个群聊！"
+        )
         self.welcome_images = self.config.get("welcome_images", [])
+
+        self.poke_stats_enabled = bool(self.config.get("poke_stats_enabled", True))
+        self.poke_rank_limit = max(
+            3, min(30, int(self.config.get("poke_rank_limit", 10)))
+        )
+        self._poke_lock = asyncio.Lock()
+        self._plugin_data_dir = self._get_plugin_data_dir()
+        self._poke_store = PokeStatsStore(self._plugin_data_dir / "poke_stats.json")
 
         if self.mute_tool_enabled:
             self.context.add_llm_tools(MuteTool(plugin=self))
@@ -167,10 +183,24 @@ class Main(Star):
             f"Airi 核心工具已加载 | 禁言工具: {'启用' if self.mute_tool_enabled else '未启用'}"
             f" | 时长范围: {self.mute_duration_min}~{self.mute_duration_max} 分钟"
             f" | 入群欢迎: {'启用' if self.welcome_enabled else '未启用'}"
+            f" | Poke统计: {'启用' if self.poke_stats_enabled else '未启用'}"
         )
 
     async def terminate(self):
         pass
+
+    def _get_plugin_data_dir(self) -> Path:
+        try:
+            from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+
+            data_dir = Path(get_astrbot_data_path())
+        except Exception:
+            plugin_dir = Path(__file__).resolve().parent
+            data_dir = plugin_dir.parent.parent
+
+        path = data_dir / "plugin_data" / PLUGIN_NAME
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
     def _resolve_uploaded_image(self, image_path: str) -> str | None:
         """解析 AstrBot 上传配置返回的绝对或相对文件路径。"""
@@ -178,13 +208,7 @@ class Main(Star):
         if not os.path.isabs(image_path):
             plugin_dir = os.path.dirname(__file__)
             candidates.append(os.path.join(plugin_dir, image_path))
-
-            # AstrBot 的 file 配置通常返回 files/...，实际文件位于
-            # data/plugin_data/<plugin_name>/ 下，而不是插件源码目录。
-            data_dir = os.path.dirname(os.path.dirname(plugin_dir))
-            candidates.append(
-                os.path.join(data_dir, "plugin_data", PLUGIN_NAME, image_path)
-            )
+            candidates.append(str(self._plugin_data_dir / image_path))
 
         for candidate in candidates:
             if os.path.isfile(candidate):
@@ -192,7 +216,6 @@ class Main(Star):
         return None
 
     def _get_welcome_image_paths(self) -> list[str]:
-        """获取欢迎图片的绝对路径。"""
         image_paths = []
         for img in self.welcome_images:
             if not img:
@@ -202,20 +225,69 @@ class Main(Star):
                 image_paths.append(image_path)
             else:
                 logger.warning(f"欢迎图片文件无效或无法访问: {img}")
-
         return image_paths
 
     async def _send_welcome(self, event: AstrMessageEvent):
-        """将欢迎文字和图片组合成一条消息发送。"""
         chain = []
         if self.welcome_message:
             chain.append(Comp.Plain(self.welcome_message))
-
         for image_path in self._get_welcome_image_paths():
             chain.append(Comp.Image.fromFileSystem(image_path))
-
         if chain:
             yield event.chain_result(chain)
+
+    @staticmethod
+    def _validate_qq_arg(qq: str) -> tuple[str | None, str | None]:
+        qq = str(qq or "").strip()
+        if not qq:
+            return None, None
+        if not qq.isdigit():
+            return None, "QQ 号必须是纯数字，例如：/poke排行 123456789"
+        return qq, None
+
+    def _new_rank_image_path(self, scope: str) -> Path:
+        safe_scope = "".join(ch for ch in scope if ch.isalnum() or ch in "_-")
+        return self._plugin_data_dir / f"poke_rank_{safe_scope}_{time.time_ns()}.png"
+
+    def _cleanup_rank_images(self, keep: int = 20) -> None:
+        try:
+            images = sorted(
+                self._plugin_data_dir.glob("poke_rank_*.png"),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )
+            for old_path in images[keep:]:
+                try:
+                    old_path.unlink()
+                except OSError:
+                    pass
+        except OSError:
+            pass
+
+    async def _render_rank_result(
+        self,
+        event: AstrMessageEvent,
+        *,
+        title: str,
+        subtitle: str,
+        summary: dict[str, Any],
+        scope: str,
+    ):
+        output_path = self._new_rank_image_path(scope)
+        try:
+            await asyncio.to_thread(
+                render_poke_rank_image,
+                output_path,
+                title=title,
+                subtitle=subtitle,
+                summary=summary,
+                rank_limit=self.poke_rank_limit,
+            )
+            self._cleanup_rank_images()
+            return event.chain_result([Comp.Image.fromFileSystem(str(output_path))])
+        except Exception as exc:
+            logger.exception(f"生成 Poke 排行榜图片失败: {exc}")
+            return event.plain_result("排行榜图片生成失败了，请检查服务器中文字体或 Pillow 环境。")
 
     @filter.command("help")
     async def help(self, event: AstrMessageEvent):
@@ -223,25 +295,84 @@ class Main(Star):
         async for result in self._send_welcome(event):
             yield result
 
-    @filter.event_message_type(filter.EventMessageType.ALL)
-    async def on_group_member_change(self, event: AstrMessageEvent):
-        if not self.welcome_enabled:
+    @filter.command("poke排行")
+    async def poke_rank(self, event: AstrMessageEvent, qq: str = ""):
+        """查看当前群 Poke 排行，可选 QQ 参数查看该用户在当前群的次数。"""
+        if not self.poke_stats_enabled:
+            yield event.plain_result("Poke 统计功能当前未启用。")
             return
 
+        group_id = getattr(event.message_obj, "group_id", None)
+        if not group_id:
+            yield event.plain_result("/poke排行 只能在群聊中使用哦～")
+            return
+
+        target_qq, error = self._validate_qq_arg(qq)
+        if error:
+            yield event.plain_result(error)
+            return
+
+        async with self._poke_lock:
+            summary = self._poke_store.group_summary(str(group_id), target_qq)
+
+        result = await self._render_rank_result(
+            event,
+            title="Airi Poke 排行榜",
+            subtitle=f"当前群 {group_id} · TOP {self.poke_rank_limit}",
+            summary=summary,
+            scope=f"group_{group_id}",
+        )
+        yield result
+
+    @filter.command("poke总排行")
+    async def poke_total_rank(self, event: AstrMessageEvent, qq: str = ""):
+        """查看所有群合计 Poke 排行，可选 QQ 参数查看该用户全局次数。"""
+        if not self.poke_stats_enabled:
+            yield event.plain_result("Poke 统计功能当前未启用。")
+            return
+
+        target_qq, error = self._validate_qq_arg(qq)
+        if error:
+            yield event.plain_result(error)
+            return
+
+        async with self._poke_lock:
+            summary = self._poke_store.global_summary(target_qq)
+
+        result = await self._render_rank_result(
+            event,
+            title="Airi Poke 总排行榜",
+            subtitle=f"所有群合计 · TOP {self.poke_rank_limit}",
+            summary=summary,
+            scope="global",
+        )
+        yield result
+
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def on_notice_event(self, event: AstrMessageEvent):
         raw_message = event.message_obj.raw_message
         if not isinstance(raw_message, dict) or raw_message.get("post_type") != "notice":
             return
 
-        notice_type = raw_message.get("notice_type")
-        if notice_type != "group_increase":
+        poke = parse_bot_poke_notice(raw_message)
+        if self.poke_stats_enabled and poke:
+            group_id, user_id = poke
+            try:
+                async with self._poke_lock:
+                    await asyncio.to_thread(self._poke_store.record, group_id, user_id)
+            except Exception as exc:
+                logger.exception(f"记录 Poke 统计失败: {exc}")
+            return
+
+        if not self.welcome_enabled:
+            return
+        if raw_message.get("notice_type") != "group_increase":
             return
 
         self_id = str(raw_message.get("self_id"))
         target_qq = str(raw_message.get("user_id"))
         if target_qq != self_id:
             return
-
-        group_id = str(raw_message.get("group_id"))
 
         async for result in self._send_welcome(event):
             yield result
