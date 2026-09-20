@@ -35,5 +35,17 @@
     "hint": "直接上传 Bot 进入新群聊或使用 help 命令时发送的图片，支持多张图片。",
     "default": [],
     "file_types": ["jpg", "jpeg", "png", "gif", "webp"]
+  },
+  "poke_stats_enabled": {
+    "type": "bool",
+    "description": "启用 Poke 统计排行榜",
+    "hint": "记录群友戳一戳 Bot 的次数，并启用 /poke排行 与 /poke总排行 图片排行榜。只统计目标为 Bot 自己的群内 Poke。",
+    "default": true
+  },
+  "poke_rank_limit": {
+    "type": "int",
+    "description": "Poke 排行榜显示人数",
+    "hint": "图片排行榜显示前 N 名，范围 3~30，默认 10。",
+    "default": 10
   }
 }
