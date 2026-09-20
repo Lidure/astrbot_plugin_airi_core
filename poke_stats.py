@@ -318,49 +318,148 @@ def _rounded_gradient(image: Image.Image, box, start_color, end_color, radius: i
 
 
 def center_text_xy(draw: ImageDraw.ImageDraw, text: str, font: Any, center: tuple[float, float]) -> tuple[float, float]:
+    """Return a draw.text origin that visually centers the glyph bbox on ``center``."""
     bbox = draw.textbbox((0, 0), text, font=font)
     width = bbox[2] - bbox[0]
     height = bbox[3] - bbox[1]
-    return (center[0] - width / 2 - bbox[0], center[1] - height / 2 - bbox[1])
+    return (
+        center[0] - width / 2 - bbox[0],
+        center[1] - height / 2 - bbox[1],
+    )
 
 
-def render_poke_rank_image(output_path: str | os.PathLike[str], *, title: str, subtitle: str, summary: dict[str, Any], rank_limit: int = 10) -> Path:
+def render_poke_rank_image(
+    output_path: str | os.PathLike[str],
+    *,
+    title: str,
+    subtitle: str,
+    summary: dict[str, Any],
+    rank_limit: int = 10,
+) -> Path:
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     entries = list(summary.get("entries", []))[: max(1, int(rank_limit))]
     target_user_id = summary.get("target_user_id")
     target_user_count = summary.get("target_user_count")
     display_names = summary.get("display_names") or {}
-    width = 960; top_margin = 32; header_h = 150; row_h = 76
-    list_h = max(160, 28 + len(entries) * row_h); query_h = 86 if target_user_id else 0; footer_h = 128; gap = 20
+
+    width = 960
+    top_margin = 32
+    header_h = 150
+    row_h = 76
+    list_h = max(160, 28 + len(entries) * row_h)
+    query_h = 86 if target_user_id else 0
+    footer_h = 128
+    gap = 20
     height = top_margin + header_h + gap + list_h + gap + query_h + (gap if query_h else 0) + footer_h + 32
-    image = Image.new("RGB", (width, height), "#FFF8FC"); draw = ImageDraw.Draw(image)
-    bg_top=(255,247,252); bg_bottom=(246,243,255)
+
+    image = Image.new("RGB", (width, height), "#FFF8FC")
+    draw = ImageDraw.Draw(image)
+
+    bg_top = (255, 247, 252)
+    bg_bottom = (246, 243, 255)
     for y in range(height):
-        t=y/max(1,height-1); color=tuple(round(bg_top[i]+(bg_bottom[i]-bg_top[i])*t) for i in range(3)); draw.line((0,y,width,y),fill=color)
-    draw.ellipse((790,-45,1015,180),fill="#FDE3EF"); draw.ellipse((-70,height-180,130,height+20),fill="#EDE7FF")
-    left,right=34,width-34; _rounded_gradient(image,(left,top_margin,right,top_margin+header_h),"#FF84AF","#B89CFF",30)
-    title_font=_load_font(38,True); subtitle_font=_load_font(21,False); small_font=_load_font(18,False); rank_font=_load_font(21,True); body_font=_load_font(25,True); count_font=_load_font(27,True); stat_value_font=_load_font(29,True); stat_label_font=_load_font(17,False)
-    draw.text((left+34,top_margin+28),title,font=title_font,fill="white"); draw.text((left+36,top_margin+84),subtitle,font=subtitle_font,fill="#FFF7FB")
-    updated_at=summary.get("updated_at") or "暂无记录"; updated_text=f"更新 {updated_at}"; updated_box=draw.textbbox((0,0),updated_text,font=small_font); draw.text((right-(updated_box[2]-updated_box[0])-32,top_margin+105),updated_text,font=small_font,fill="#FFF4FA")
-    list_top=top_margin+header_h+gap; draw.rounded_rectangle((left+3,list_top+6,right+3,list_top+list_h+6),radius=28,fill="#E8DCE8"); draw.rounded_rectangle((left,list_top,right,list_top+list_h),radius=28,fill="#FFFFFF")
+        t = y / max(1, height - 1)
+        color = tuple(round(bg_top[i] + (bg_bottom[i] - bg_top[i]) * t) for i in range(3))
+        draw.line((0, y, width, y), fill=color)
+
+    draw.ellipse((790, -45, 1015, 180), fill="#FDE3EF")
+    draw.ellipse((-70, height - 180, 130, height + 20), fill="#EDE7FF")
+
+    left, right = 34, width - 34
+    header_box = (left, top_margin, right, top_margin + header_h)
+    _rounded_gradient(image, header_box, "#FF84AF", "#B89CFF", 30)
+
+    title_font = _load_font(38, True)
+    subtitle_font = _load_font(21, False)
+    small_font = _load_font(18, False)
+    rank_font = _load_font(21, True)
+    body_font = _load_font(25, True)
+    count_font = _load_font(27, True)
+    stat_value_font = _load_font(29, True)
+    stat_label_font = _load_font(17, False)
+
+    draw.text((left + 34, top_margin + 28), title, font=title_font, fill="white")
+    draw.text((left + 36, top_margin + 84), subtitle, font=subtitle_font, fill="#FFF7FB")
+    updated_at = summary.get("updated_at") or "暂无记录"
+    updated_text = f"更新 {updated_at}"
+    updated_box = draw.textbbox((0, 0), updated_text, font=small_font)
+    draw.text((right - (updated_box[2] - updated_box[0]) - 32, top_margin + 105), updated_text, font=small_font, fill="#FFF4FA")
+
+    list_top = top_margin + header_h + gap
+    draw.rounded_rectangle((left + 3, list_top + 6, right + 3, list_top + list_h + 6), radius=28, fill="#E8DCE8")
+    draw.rounded_rectangle((left, list_top, right, list_top + list_h), radius=28, fill="#FFFFFF")
+
     if not entries:
-        draw.text((left+48,list_top+50),"还没有 Poke 记录",font=_load_font(25,True),fill="#493E54"); draw.text((left+48,list_top+94),"快来戳一戳，让排行榜热闹起来吧～",font=_load_font(20,False),fill="#8C8194")
+        empty_font = _load_font(25, True)
+        hint_font = _load_font(20, False)
+        draw.text((left + 48, list_top + 50), "还没有 Poke 记录", font=empty_font, fill="#493E54")
+        draw.text((left + 48, list_top + 94), "快来戳一戳，让排行榜热闹起来吧～", font=hint_font, fill="#8C8194")
     else:
-        max_count=max(int(count) for _,count in entries) or 1; medal_fills=("#F8C95F","#C8CFDE","#DCA47B")
-        for index,(user_id,count) in enumerate(entries,start=1):
-            y=list_top+18+(index-1)*row_h; row_box=(left+20,y,right-20,y+60); draw.rounded_rectangle(row_box,radius=19,fill="#FFF4F8" if index<=3 else "#FAF8FC")
-            badge_x=left+42; badge_y=y+10; draw.ellipse((badge_x,badge_y,badge_x+40,badge_y+40),fill=medal_fills[index-1] if index<=3 else "#E9E4EE"); rank_text=str(index); draw.text(center_text_xy(draw,rank_text,rank_font,(badge_x+20,badge_y+20)),rank_text,font=rank_font,fill="#4B4051")
-            display_name=_truncate_label(privacy_safe_label(user_id,display_names.get(str(user_id)))); draw.text((left+102,y+13),display_name,font=body_font,fill="#3B3242")
-            bar_left=left+420; bar_right=right-150; bar_y=y+24; draw.rounded_rectangle((bar_left,bar_y,bar_right,bar_y+12),radius=6,fill="#EEE8F1"); ratio=max(0.06,int(count)/max_count); fill_right=bar_left+int((bar_right-bar_left)*ratio); draw.rounded_rectangle((bar_left,bar_y,fill_right,bar_y+12),radius=6,fill="#F29BB9" if index<=3 else "#C2AFE9")
-            count_text=f"{int(count)} 次"; cb=draw.textbbox((0,0),count_text,font=count_font); draw.text((right-44-(cb[2]-cb[0]),y+11),count_text,font=count_font,fill="#F05F95")
-    current_y=list_top+list_h+gap
+        max_count = max(int(count) for _, count in entries) or 1
+        medal_fills = ("#F8C95F", "#C8CFDE", "#DCA47B")
+        for index, (user_id, count) in enumerate(entries, start=1):
+            y = list_top + 18 + (index - 1) * row_h
+            row_box = (left + 20, y, right - 20, y + 60)
+            row_fill = "#FFF4F8" if index <= 3 else "#FAF8FC"
+            draw.rounded_rectangle(row_box, radius=19, fill=row_fill)
+
+            badge_x = left + 42
+            badge_y = y + 10
+            badge_fill = medal_fills[index - 1] if index <= 3 else "#E9E4EE"
+            draw.ellipse((badge_x, badge_y, badge_x + 40, badge_y + 40), fill=badge_fill)
+            rank_text = str(index)
+            rank_xy = center_text_xy(
+                draw, rank_text, rank_font, (badge_x + 20, badge_y + 20)
+            )
+            draw.text(rank_xy, rank_text, font=rank_font, fill="#4B4051")
+
+            display_name = privacy_safe_label(user_id, display_names.get(str(user_id)))
+            display_name = _truncate_label(display_name)
+            draw.text((left + 102, y + 13), display_name, font=body_font, fill="#3B3242")
+
+            bar_left = left + 420
+            bar_right = right - 150
+            bar_y = y + 24
+            draw.rounded_rectangle((bar_left, bar_y, bar_right, bar_y + 12), radius=6, fill="#EEE8F1")
+            ratio = max(0.06, int(count) / max_count)
+            fill_right = bar_left + int((bar_right - bar_left) * ratio)
+            draw.rounded_rectangle((bar_left, bar_y, fill_right, bar_y + 12), radius=6, fill="#F29BB9" if index <= 3 else "#C2AFE9")
+
+            count_text = f"{int(count)} 次"
+            cb = draw.textbbox((0, 0), count_text, font=count_font)
+            draw.text((right - 44 - (cb[2] - cb[0]), y + 11), count_text, font=count_font, fill="#F05F95")
+
+    current_y = list_top + list_h + gap
+
     if target_user_id:
-        draw.rounded_rectangle((left,current_y,right,current_y+query_h),radius=24,fill="#FFF0F6"); draw.text((left+30,current_y+20),"个人查询",font=small_font,fill="#A95E7A")
-        target_name=_truncate_label(privacy_safe_label(target_user_id,display_names.get(str(target_user_id))),16); query_text=f"{target_name}  累计 {int(target_user_count or 0)} 次"; qb=draw.textbbox((0,0),query_text,font=body_font); draw.text((right-30-(qb[2]-qb[0]),current_y+27),query_text,font=body_font,fill="#D94E83"); current_y+=query_h+gap
-    draw.rounded_rectangle((left,current_y,right,current_y+footer_h),radius=26,fill="#FFFFFF"); total=int(summary.get("total_pokes",0)); unique=int(summary.get("unique_users",0)); stats=[("累计被戳",str(total),"次"),("参与用户",str(unique),"人"),("榜单显示",str(min(len(entries),max(1,int(rank_limit)))),"人")]; col_w=(right-left-44)//3
-    for i,(label,value,unit) in enumerate(stats):
-        x=left+22+i*col_w
-        if i: draw.line((x-12,current_y+26,x-12,current_y+footer_h-26),fill="#EFE8F1",width=2)
-        draw.text((x+12,current_y+27),label,font=stat_label_font,fill="#918697"); draw.text((x+12,current_y+60),f"{value} {unit}",font=stat_value_font,fill="#4A3E52")
-    temp_output=output.with_name(output.stem+".tmp"+output.suffix); image.save(temp_output,format="PNG",optimize=True); os.replace(temp_output,output); return output
+        draw.rounded_rectangle((left, current_y, right, current_y + query_h), radius=24, fill="#FFF0F6")
+        draw.text((left + 30, current_y + 20), "个人查询", font=small_font, fill="#A95E7A")
+        target_name = privacy_safe_label(target_user_id, display_names.get(str(target_user_id)))
+        target_name = _truncate_label(target_name, 16)
+        query_text = f"{target_name}  累计 {int(target_user_count or 0)} 次"
+        qb = draw.textbbox((0, 0), query_text, font=body_font)
+        draw.text((right - 30 - (qb[2] - qb[0]), current_y + 27), query_text, font=body_font, fill="#D94E83")
+        current_y += query_h + gap
+
+    draw.rounded_rectangle((left, current_y, right, current_y + footer_h), radius=26, fill="#FFFFFF")
+    total = int(summary.get("total_pokes", 0))
+    unique = int(summary.get("unique_users", 0))
+    stats = [
+        ("累计被戳", str(total), "次"),
+        ("参与用户", str(unique), "人"),
+        ("榜单显示", str(min(len(entries), max(1, int(rank_limit)))), "人"),
+    ]
+    col_w = (right - left - 44) // 3
+    for i, (label, value, unit) in enumerate(stats):
+        x = left + 22 + i * col_w
+        if i:
+            draw.line((x - 12, current_y + 26, x - 12, current_y + footer_h - 26), fill="#EFE8F1", width=2)
+        draw.text((x + 12, current_y + 27), label, font=stat_label_font, fill="#918697")
+        value_text = f"{value} {unit}"
+        draw.text((x + 12, current_y + 60), value_text, font=stat_value_font, fill="#4A3E52")
+
+    temp_output = output.with_name(output.stem + ".tmp" + output.suffix)
+    image.save(temp_output, format="PNG", optimize=True)
+    os.replace(temp_output, output)
+    return output
