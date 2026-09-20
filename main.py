@@ -197,6 +197,7 @@ class Main(Star):
             f" | 时长范围: {self.mute_duration_min}~{self.mute_duration_max} 分钟"
             f" | 入群欢迎: {'启用' if self.welcome_enabled else '未启用'}"
             f" | Poke统计: {'启用' if self.poke_stats_enabled else '未启用'}"
+            " | Poke日榜切日: 04:00"
         )
 
     async def terminate(self):
@@ -216,7 +217,6 @@ class Main(Star):
         return path
 
     def _resolve_uploaded_image(self, image_path: str) -> str | None:
-        """解析 AstrBot 上传配置返回的绝对或相对文件路径。"""
         candidates = [image_path]
         if not os.path.isabs(image_path):
             plugin_dir = os.path.dirname(__file__)
@@ -250,12 +250,12 @@ class Main(Star):
             yield event.chain_result(chain)
 
     @staticmethod
-    def _validate_qq_arg(qq: str) -> tuple[str | None, str | None]:
+    def _validate_qq_arg(qq: str, command_name: str) -> tuple[str | None, str | None]:
         qq = str(qq or "").strip()
         if not qq:
             return None, None
         if not qq.isdigit():
-            return None, "QQ 号必须是纯数字，例如：/poke排行 123456789"
+            return None, f"QQ 号必须是纯数字，例如：/{command_name} 123456789"
         return qq, None
 
     def _new_rank_image_path(self, scope: str) -> Path:
@@ -278,7 +278,10 @@ class Main(Star):
             pass
 
     def _rank_user_ids(self, summary: dict[str, Any]) -> list[str]:
-        user_ids = [str(user_id) for user_id, _ in summary.get("entries", [])[: self.poke_rank_limit]]
+        user_ids = [
+            str(user_id)
+            for user_id, _ in summary.get("entries", [])[: self.poke_rank_limit]
+        ]
         target_user_id = summary.get("target_user_id")
         if target_user_id is not None and str(target_user_id) not in user_ids:
             user_ids.append(str(target_user_id))
@@ -321,7 +324,9 @@ class Main(Star):
                         user_id=int(user_id),
                         no_cache=False,
                     )
-                    return user_id, extract_onebot_profile_name(profile, prefer_card=False)
+                    return user_id, extract_onebot_profile_name(
+                        profile, prefer_card=False
+                    )
                 except Exception as exc:
                     logger.debug(f"获取 QQ 昵称失败 user={user_id}: {exc}")
                     return user_id, ""
@@ -329,8 +334,47 @@ class Main(Star):
         user_ids = self._rank_user_ids(summary)
         if not user_ids:
             return {}
-        resolved = await asyncio.gather(*(resolve_one(user_id) for user_id in user_ids))
+        resolved = await asyncio.gather(
+            *(resolve_one(user_id) for user_id in user_ids)
+        )
         return {user_id: name for user_id, name in resolved}
+
+    async def _prepare_rank_summary(
+        self,
+        event: AstrMessageEvent,
+        *,
+        group_id: str | None,
+        target_qq: str | None,
+        daily: bool,
+        global_scope: bool,
+    ) -> dict[str, Any]:
+        async with self._poke_lock:
+            if global_scope:
+                summary = (
+                    self._poke_store.daily_global_summary(target_qq)
+                    if daily
+                    else self._poke_store.global_summary(target_qq)
+                )
+            else:
+                assert group_id is not None
+                summary = (
+                    self._poke_store.daily_group_summary(group_id, target_qq)
+                    if daily
+                    else self._poke_store.group_summary(group_id, target_qq)
+                )
+
+        summary["display_names"] = await self._resolve_display_names(
+            event,
+            summary,
+            group_id=None if global_scope else group_id,
+        )
+        summary["is_daily"] = daily
+        summary["is_global_scope"] = global_scope
+        return summary
+
+    @staticmethod
+    def _group_rank_subtitle(summary: dict[str, Any], *, daily: bool) -> str:
+        return "当前群 · 今日榜 · 04:00 刷新" if daily else "当前群 · 历史榜"
 
     async def _render_rank_result(
         self,
@@ -355,17 +399,18 @@ class Main(Star):
             return event.chain_result([Comp.Image.fromFileSystem(str(output_path))])
         except Exception as exc:
             logger.exception(f"生成 Poke 排行榜图片失败: {exc}")
-            return event.plain_result("排行榜图片生成失败了，请检查服务器中文字体或 Pillow 环境。")
+            return event.plain_result(
+                "排行榜图片生成失败了，请检查服务器中文字体或 Pillow 环境。"
+            )
 
     @filter.command("help")
     async def help(self, event: AstrMessageEvent):
-        """发送帮助内容（复用配置的欢迎消息和欢迎图片）。"""
         async for result in self._send_welcome(event):
             yield result
 
     @filter.command("poke排行")
     async def poke_rank(self, event: AstrMessageEvent, qq: str = ""):
-        """查看当前群 Poke 排行，可选 QQ 参数查看该用户在当前群的次数。"""
+        """查看当前统计日的当前群 Poke 排行，统计日每天 04:00 切换。"""
         if not self.poke_stats_enabled:
             yield event.plain_result("Poke 统计功能当前未启用。")
             return
@@ -375,48 +420,113 @@ class Main(Star):
             yield event.plain_result("/poke排行 只能在群聊中使用哦～")
             return
 
-        target_qq, error = self._validate_qq_arg(qq)
+        target_qq, error = self._validate_qq_arg(qq, "poke排行")
         if error:
             yield event.plain_result(error)
             return
 
-        async with self._poke_lock:
-            summary = self._poke_store.group_summary(str(group_id), target_qq)
-        summary["display_names"] = await self._resolve_display_names(
-            event, summary, group_id=str(group_id)
+        summary = await self._prepare_rank_summary(
+            event,
+            group_id=str(group_id),
+            target_qq=target_qq,
+            daily=True,
+            global_scope=False,
         )
-
         result = await self._render_rank_result(
             event,
-            title="Airi Poke 排行榜",
-            subtitle=f"当前群 · TOP {self.poke_rank_limit}",
+            title="Airi 今日 Poke 排行榜",
+            subtitle=self._group_rank_subtitle(summary, daily=True),
             summary=summary,
-            scope=f"group_{group_id}",
+            scope=f"daily_group_{group_id}",
         )
         yield result
 
     @filter.command("poke总排行")
     async def poke_total_rank(self, event: AstrMessageEvent, qq: str = ""):
-        """查看所有群合计 Poke 排行，可选 QQ 参数查看该用户全局次数。"""
+        """查看当前统计日所有群合计 Poke 排行，统计日每天 04:00 切换。"""
         if not self.poke_stats_enabled:
             yield event.plain_result("Poke 统计功能当前未启用。")
             return
 
-        target_qq, error = self._validate_qq_arg(qq)
+        target_qq, error = self._validate_qq_arg(qq, "poke总排行")
         if error:
             yield event.plain_result(error)
             return
 
-        async with self._poke_lock:
-            summary = self._poke_store.global_summary(target_qq)
-        summary["display_names"] = await self._resolve_display_names(event, summary)
-
+        summary = await self._prepare_rank_summary(
+            event,
+            group_id=None,
+            target_qq=target_qq,
+            daily=True,
+            global_scope=True,
+        )
         result = await self._render_rank_result(
             event,
-            title="Airi Poke 总排行榜",
-            subtitle=f"所有群合计 · TOP {self.poke_rank_limit}",
+            title="Airi 今日 Poke 总排行榜",
+            subtitle="所有群合计 · 今日总榜 · 每日 04:00 刷新",
             summary=summary,
-            scope="global",
+            scope="daily_global",
+        )
+        yield result
+
+    @filter.command("poke历史排行")
+    async def poke_history_rank(self, event: AstrMessageEvent, qq: str = ""):
+        """查看当前群历史累计 Poke 排行。"""
+        if not self.poke_stats_enabled:
+            yield event.plain_result("Poke 统计功能当前未启用。")
+            return
+
+        group_id = getattr(event.message_obj, "group_id", None)
+        if not group_id:
+            yield event.plain_result("/poke历史排行 只能在群聊中使用哦～")
+            return
+
+        target_qq, error = self._validate_qq_arg(qq, "poke历史排行")
+        if error:
+            yield event.plain_result(error)
+            return
+
+        summary = await self._prepare_rank_summary(
+            event,
+            group_id=str(group_id),
+            target_qq=target_qq,
+            daily=False,
+            global_scope=False,
+        )
+        result = await self._render_rank_result(
+            event,
+            title="Airi 历史 Poke 排行榜",
+            subtitle=self._group_rank_subtitle(summary, daily=False),
+            summary=summary,
+            scope=f"history_group_{group_id}",
+        )
+        yield result
+
+    @filter.command("poke历史总排行")
+    async def poke_history_total_rank(self, event: AstrMessageEvent, qq: str = ""):
+        """查看所有群历史累计 Poke 总排行。"""
+        if not self.poke_stats_enabled:
+            yield event.plain_result("Poke 统计功能当前未启用。")
+            return
+
+        target_qq, error = self._validate_qq_arg(qq, "poke历史总排行")
+        if error:
+            yield event.plain_result(error)
+            return
+
+        summary = await self._prepare_rank_summary(
+            event,
+            group_id=None,
+            target_qq=target_qq,
+            daily=False,
+            global_scope=True,
+        )
+        result = await self._render_rank_result(
+            event,
+            title="Airi 历史 Poke 总排行榜",
+            subtitle="所有群合计 · 历史总榜",
+            summary=summary,
+            scope="history_global",
         )
         yield result
 
