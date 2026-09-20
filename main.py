@@ -15,12 +15,20 @@ from astrbot.api.star import Context, Star
 from astrbot.core.agent.tool import FunctionTool
 import astrbot.api.message_components as Comp
 
-from poke_stats import (
-    PokeStatsStore,
-    extract_onebot_profile_name,
-    parse_bot_poke_notice,
-    render_poke_rank_image,
-)
+if __package__:
+    from .poke_stats import (
+        PokeStatsStore,
+        extract_onebot_profile_name,
+        parse_bot_poke_notice,
+        render_poke_rank_image,
+    )
+else:
+    from poke_stats import (
+        PokeStatsStore,
+        extract_onebot_profile_name,
+        parse_bot_poke_notice,
+        render_poke_rank_image,
+    )
 
 
 PLUGIN_NAME = "astrbot_plugin_airi_core"
