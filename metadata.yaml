@@ -1,7 +1,7 @@
 name: astrbot_plugin_airi_core
 display_name: Airi 核心工具🌸
-short_desc: Airi 核心 LLM 工具集，提供禁言等群管理能力。
-desc: Airi 核心 LLM 工具集，支持在群聊中通过 LLM 自动禁言违规用户，禁言时长可配置。同时支持入群欢迎消息功能。
-version: v1.1.0
+short_desc: Airi 核心辅助插件，提供群管理、入群欢迎与 Poke 图片排行榜。
+desc: Airi 核心辅助插件，支持 LLM 群禁言、Bot 入群欢迎，以及按 QQ 独立累计的群内/全局 Poke 统计与图片排行榜。
+version: v1.2.1
 author: Lidure
 repo: https://github.com/Lidure/astrbot_plugin_airi_core
