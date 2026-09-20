@@ -368,16 +368,13 @@ class Main(Star):
             summary,
             group_id=None if global_scope else group_id,
         )
+        summary["is_daily"] = daily
+        summary["is_global_scope"] = global_scope
         return summary
 
     @staticmethod
     def _group_rank_subtitle(summary: dict[str, Any], *, daily: bool) -> str:
-        total = int(summary.get("total_pokes", 0))
-        rank = summary.get("group_total_rank")
-        group_count = int(summary.get("group_total_groups", 0))
-        period = "今日榜 · 每日 04:00 刷新" if daily else "历史榜"
-        rank_text = f"群总榜 {rank}/{group_count}" if rank is not None and group_count else "群总榜 暂无排名"
-        return f"当前群 · {period} · 本群 {total} 次 · {rank_text}"
+        return "当前群 · 今日榜 · 04:00 刷新" if daily else "当前群 · 历史榜"
 
     async def _render_rank_result(
         self,
