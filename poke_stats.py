@@ -186,14 +186,29 @@ class PokeStatsStore:
         if target_user_id is not None:
             info = users.get(str(target_user_id), {})
             target_count = int(info.get("count", 0)) if isinstance(info, dict) else 0
+        total_pokes = int(group.get("total", 0)) if isinstance(group, dict) else 0
+        ranked_groups = sorted(
+            (
+                (str(gid), int(info.get("total", 0)))
+                for gid, info in groups.items()
+                if isinstance(info, dict) and int(info.get("total", 0)) > 0
+            ),
+            key=lambda item: (-item[1], item[0]),
+        )
+        group_total_rank = next(
+            (index for index, (gid, _) in enumerate(ranked_groups, start=1) if gid == str(group_id)),
+            None,
+        )
         return {
             "entries": entries,
-            "total_pokes": int(group.get("total", 0)) if isinstance(group, dict) else 0,
+            "total_pokes": total_pokes,
             "unique_users": len(users),
             "target_user_id": str(target_user_id) if target_user_id is not None else None,
             "target_user_count": target_count,
             "updated_at": updated_at,
             "stats_day": stats_day,
+            "group_total_rank": group_total_rank,
+            "group_total_groups": len(ranked_groups),
         }
 
     def _global_summary(
