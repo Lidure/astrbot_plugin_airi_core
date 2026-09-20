@@ -44,7 +44,7 @@ Airi 的 AstrBot 辅助核心插件，提供群管理、入群欢迎与 Poke 统
 - 即使 AstrBot 在 04:00 时离线、重启或插件没有运行，下一次记录/查询时仍会自动进入正确的新统计日。
 - 切日只影响 `/poke排行` 和 `/poke总排行`；历史累计榜不会清零。
 
-从 v1.2.x 升级时，旧 `poke_stats.json` 中的累计次数会完整保留到历史榜。由于旧版本没有记录每次 Poke 的日期，升级前的历史累计数据不会被错误塞进升级当天的日榜；日榜从 v1.3.0 开始按新规则记录。
+从 v1.2.x 升级时，旧 `poke_stats.json` 中的累计次数会完整保留到历史榜。由于旧版本没有记录每次 Poke 的日期，升级前的历史累计数据不会被错误塞进升级当天的日榜；日榜从 v1.3.1 开始按新规则记录。
 
 ### 统计规则
 
@@ -88,15 +88,8 @@ data/plugin_data/astrbot_plugin_airi_core/poke_stats.json
 
 ## 中文字体
 
-排行榜渲染会自动尝试 Noto Sans CJK、文泉驿、微软雅黑等字体。Linux / 树莓派若没有中文字体，推荐安装：
+排行榜图片优先使用 Noto Sans CJK。Linux / ARM64 环境如果中文显示异常，可以安装：
 
 ```bash
-sudo apt update
 sudo apt install fonts-noto-cjk
-```
-
-## 依赖
-
-```text
-Pillow>=10.0.0
 ```
