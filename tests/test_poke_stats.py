@@ -14,6 +14,7 @@ class PokeStatsFeatureContractTests(unittest.TestCase):
         self.assertTrue(hasattr(poke_stats, "parse_bot_poke_notice"))
         self.assertTrue(hasattr(poke_stats, "PokeStatsStore"))
         self.assertTrue(hasattr(poke_stats, "render_poke_rank_image"))
+        self.assertTrue(hasattr(poke_stats, "extract_onebot_profile_name"))
 
 
 class ParsePokeNoticeTests(unittest.TestCase):
@@ -79,6 +80,33 @@ class PokeStatsStoreTests(unittest.TestCase):
             self.assertNotEqual(path.read_text(encoding="utf-8"), "{broken")
 
 
+class OneBotProfileNameTests(unittest.TestCase):
+    def test_group_card_has_priority_over_nickname(self):
+        payload = {"data": {"card": "群昵称", "nickname": "QQ昵称"}}
+        self.assertEqual(poke_stats.extract_onebot_profile_name(payload, prefer_card=True), "群昵称")
+
+    def test_empty_card_falls_back_to_nickname(self):
+        payload = {"card": "", "nickname": "QQ昵称"}
+        self.assertEqual(poke_stats.extract_onebot_profile_name(payload, prefer_card=True), "QQ昵称")
+
+    def test_global_profile_uses_nickname(self):
+        payload = {"data": {"card": "群昵称", "nickname": "QQ昵称"}}
+        self.assertEqual(poke_stats.extract_onebot_profile_name(payload, prefer_card=False), "QQ昵称")
+
+    def test_invalid_profile_returns_empty_string(self):
+        self.assertEqual(poke_stats.extract_onebot_profile_name(None, prefer_card=True), "")
+
+
+class PrivacyLabelTests(unittest.TestCase):
+    def test_prefers_visible_name_over_user_id(self):
+        self.assertEqual(poke_stats.privacy_safe_label("123456789", "爱莉"), "爱莉")
+
+    def test_fallback_never_contains_full_user_id(self):
+        label = poke_stats.privacy_safe_label("123456789", "")
+        self.assertTrue(label.startswith("匿名用户 "))
+        self.assertNotIn("123456789", label)
+
+
 class PokeRankRendererTests(unittest.TestCase):
     def test_renders_png_rank_card(self):
         from PIL import Image
@@ -86,6 +114,11 @@ class PokeRankRendererTests(unittest.TestCase):
             output = Path(tmp) / "rank.png"
             summary = {
                 "entries": [("10001", 12), ("10002", 8), ("10003", 3)],
+                "display_names": {
+                    "10001": "桃井爱莉",
+                    "10002": "群昵称小明",
+                    "10003": "",
+                },
                 "total_pokes": 23,
                 "unique_users": 3,
                 "target_user_id": "10002",
@@ -105,6 +138,20 @@ class PokeRankRendererTests(unittest.TestCase):
                 self.assertEqual(image.format, "PNG")
                 self.assertGreaterEqual(image.width, 800)
                 self.assertGreaterEqual(image.height, 500)
+
+    def test_renderer_source_does_not_draw_raw_qq_number(self):
+        source = (Path(__file__).resolve().parents[1] / "poke_stats.py").read_text(encoding="utf-8")
+        self.assertNotIn('f"QQ {user_id}"', source)
+        self.assertNotIn('f"QQ {target_user_id}', source)
+
+
+class MainPrivacyWiringTests(unittest.TestCase):
+    def test_main_resolves_names_and_does_not_put_group_id_in_card_subtitle(self):
+        source = (Path(__file__).resolve().parents[1] / "main.py").read_text(encoding="utf-8")
+        self.assertIn('"get_group_member_info"', source)
+        self.assertIn('"get_stranger_info"', source)
+        self.assertIn('summary["display_names"]', source)
+        self.assertNotIn('subtitle=f"当前群 {group_id}', source)
 
 
 if __name__ == "__main__":
