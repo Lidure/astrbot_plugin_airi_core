@@ -370,6 +370,15 @@ class Main(Star):
         )
         return summary
 
+    @staticmethod
+    def _group_rank_subtitle(summary: dict[str, Any], *, daily: bool) -> str:
+        total = int(summary.get("total_pokes", 0))
+        rank = summary.get("group_total_rank")
+        group_count = int(summary.get("group_total_groups", 0))
+        period = "今日榜 · 每日 04:00 刷新" if daily else "历史榜"
+        rank_text = f"群总榜 {rank}/{group_count}" if rank is not None and group_count else "群总榜 暂无排名"
+        return f"当前群 · {period} · 本群 {total} 次 · {rank_text}"
+
     async def _render_rank_result(
         self,
         event: AstrMessageEvent,
@@ -429,7 +438,7 @@ class Main(Star):
         result = await self._render_rank_result(
             event,
             title="Airi 今日 Poke 排行榜",
-            subtitle=f"当前群 · 每日 04:00 刷新 · TOP {self.poke_rank_limit}",
+            subtitle=self._group_rank_subtitle(summary, daily=True),
             summary=summary,
             scope=f"daily_group_{group_id}",
         )
@@ -457,7 +466,7 @@ class Main(Star):
         result = await self._render_rank_result(
             event,
             title="Airi 今日 Poke 总排行榜",
-            subtitle=f"所有群合计 · 每日 04:00 刷新 · TOP {self.poke_rank_limit}",
+            subtitle="所有群合计 · 今日总榜 · 每日 04:00 刷新",
             summary=summary,
             scope="daily_global",
         )
@@ -490,7 +499,7 @@ class Main(Star):
         result = await self._render_rank_result(
             event,
             title="Airi 历史 Poke 排行榜",
-            subtitle=f"当前群 · 历史累计 · TOP {self.poke_rank_limit}",
+            subtitle=self._group_rank_subtitle(summary, daily=False),
             summary=summary,
             scope=f"history_group_{group_id}",
         )
@@ -518,7 +527,7 @@ class Main(Star):
         result = await self._render_rank_result(
             event,
             title="Airi 历史 Poke 总排行榜",
-            subtitle=f"所有群合计 · 历史累计 · TOP {self.poke_rank_limit}",
+            subtitle="所有群合计 · 历史总榜",
             summary=summary,
             scope="history_global",
         )
