@@ -119,9 +119,57 @@ class MainDailyRankingWiringTests(unittest.TestCase):
         self.assertIn("self._poke_store.group_summary", source)
         self.assertIn("self._poke_store.global_summary", source)
         self.assertIn("每日 04:00 刷新", source)
-        self.assertIn("group_total_rank", source)
-        self.assertIn("群总榜", source)
+        renderer_source = (Path(__file__).resolve().parents[1] / "poke_stats.py").read_text(encoding="utf-8")
+        self.assertIn("group_total_rank", renderer_source)
+        self.assertIn("群排名", renderer_source)
         self.assertNotIn("TOP {self.poke_rank_limit}", source)
+
+
+class RankingPresentationTests(unittest.TestCase):
+    def test_group_subtitle_does_not_repeat_total_or_rank(self):
+        source = (Path(__file__).resolve().parents[1] / "main.py").read_text(encoding="utf-8")
+        self.assertIn('return "当前群 · 今日榜 · 04:00 刷新" if daily else "当前群 · 历史榜"', source)
+
+    def test_group_footer_promotes_total_users_and_group_rank(self):
+        summary = {
+            "total_pokes": 335,
+            "unique_users": 4,
+            "entries": [("u1", 128)],
+            "group_total_rank": 3,
+            "group_total_groups": 27,
+            "is_daily": True,
+            "is_global_scope": False,
+        }
+        self.assertEqual(
+            poke_stats.build_rank_footer_stats(summary, 10),
+            [("今日被戳", "335 次"), ("参与用户", "4 人"), ("群排名", "第 3 / 27")],
+        )
+
+    def test_history_group_footer_uses_history_wording(self):
+        summary = {
+            "total_pokes": 1824,
+            "unique_users": 19,
+            "entries": [],
+            "group_total_rank": 2,
+            "group_total_groups": 41,
+            "is_daily": False,
+            "is_global_scope": False,
+        }
+        self.assertEqual(
+            poke_stats.build_rank_footer_stats(summary, 10),
+            [("历史被戳", "1824 次"), ("参与用户", "19 人"), ("群排名", "第 2 / 41")],
+        )
+
+    def test_update_label_is_compact_but_keeps_date_for_older_data(self):
+        now = datetime(2026, 9, 20, 10, 37, 40)
+        self.assertEqual(
+            poke_stats.format_rank_updated_label("2026-09-20 10:37:00", now=now),
+            "更新 10:37",
+        )
+        self.assertEqual(
+            poke_stats.format_rank_updated_label("2026-09-19 12:00:00", now=now),
+            "更新 09-19 12:00",
+        )
 
 
 if __name__ == "__main__":

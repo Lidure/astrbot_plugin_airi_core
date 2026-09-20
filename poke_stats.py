@@ -343,6 +343,49 @@ def center_text_xy(draw: ImageDraw.ImageDraw, text: str, font: Any, center: tupl
     )
 
 
+
+def format_rank_updated_label(updated_at: Any, *, now: datetime | None = None) -> str:
+    """Format ranking update time compactly without hiding an older date."""
+    text = str(updated_at or "").strip()
+    if not text:
+        return "暂无记录"
+    try:
+        moment = datetime.strptime(text, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return f"更新 {text}"
+    current = now or datetime.now()
+    if moment.date() == current.date():
+        return f"更新 {moment:%H:%M}"
+    return f"更新 {moment:%m-%d %H:%M}"
+
+
+def build_rank_footer_stats(summary: dict[str, Any], rank_limit: int) -> list[tuple[str, str]]:
+    """Build the three compact footer stats shown on ranking cards."""
+    total = int(summary.get("total_pokes", 0))
+    unique = int(summary.get("unique_users", 0))
+    daily = bool(summary.get("is_daily", False))
+    global_scope = bool(summary.get("is_global_scope", False))
+    total_label = "今日被戳" if daily else "历史被戳"
+
+    if not global_scope:
+        rank = summary.get("group_total_rank")
+        group_count = int(summary.get("group_total_groups", 0))
+        rank_value = (
+            f"第 {int(rank)} / {group_count}"
+            if rank is not None and group_count > 0
+            else "暂无排名"
+        )
+        third = ("群排名", rank_value)
+    else:
+        shown = min(len(summary.get("entries", [])), max(1, int(rank_limit)))
+        third = ("榜单显示", f"{shown} 人")
+
+    return [
+        (total_label, f"{total} 次"),
+        ("参与用户", f"{unique} 人"),
+        third,
+    ]
+
 def render_poke_rank_image(
     output_path: str | os.PathLike[str],
     *,
@@ -396,8 +439,7 @@ def render_poke_rank_image(
 
     draw.text((left + 34, top_margin + 28), title, font=title_font, fill="white")
     draw.text((left + 36, top_margin + 84), subtitle, font=subtitle_font, fill="#FFF7FB")
-    updated_at = summary.get("updated_at") or "暂无记录"
-    updated_text = f"更新 {updated_at}"
+    updated_text = format_rank_updated_label(summary.get("updated_at"))
     updated_box = draw.textbbox((0, 0), updated_text, font=small_font)
     draw.text((right - (updated_box[2] - updated_box[0]) - 32, top_margin + 105), updated_text, font=small_font, fill="#FFF4FA")
 
@@ -458,20 +500,13 @@ def render_poke_rank_image(
         current_y += query_h + gap
 
     draw.rounded_rectangle((left, current_y, right, current_y + footer_h), radius=26, fill="#FFFFFF")
-    total = int(summary.get("total_pokes", 0))
-    unique = int(summary.get("unique_users", 0))
-    stats = [
-        ("累计被戳", str(total), "次"),
-        ("参与用户", str(unique), "人"),
-        ("榜单显示", str(min(len(entries), max(1, int(rank_limit)))), "人"),
-    ]
+    stats = build_rank_footer_stats(summary, rank_limit)
     col_w = (right - left - 44) // 3
-    for i, (label, value, unit) in enumerate(stats):
+    for i, (label, value_text) in enumerate(stats):
         x = left + 22 + i * col_w
         if i:
             draw.line((x - 12, current_y + 26, x - 12, current_y + footer_h - 26), fill="#EFE8F1", width=2)
         draw.text((x + 12, current_y + 27), label, font=stat_label_font, fill="#918697")
-        value_text = f"{value} {unit}"
         draw.text((x + 12, current_y + 60), value_text, font=stat_value_font, fill="#4A3E52")
 
     temp_output = output.with_name(output.stem + ".tmp" + output.suffix)
