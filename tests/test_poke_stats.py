@@ -107,6 +107,17 @@ class PrivacyLabelTests(unittest.TestCase):
         self.assertNotIn("123456789", label)
 
 
+class CenteredTextPositionTests(unittest.TestCase):
+    def test_centering_accounts_for_bbox_origin_offset(self):
+        class FakeDraw:
+            def textbbox(self, xy, text, font=None):
+                return (2, 5, 12, 21)
+
+        x, y = poke_stats.center_text_xy(FakeDraw(), "1", object(), (20, 30))
+        self.assertEqual(x, 13.0)
+        self.assertEqual(y, 17.0)
+
+
 class PokeRankRendererTests(unittest.TestCase):
     def test_renders_png_rank_card(self):
         from PIL import Image
