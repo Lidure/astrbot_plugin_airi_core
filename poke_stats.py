@@ -194,6 +194,17 @@ def _rounded_gradient(image: Image.Image, box, start_color, end_color, radius: i
     image.paste(gradient, (x1, y1), mask)
 
 
+def center_text_xy(draw: ImageDraw.ImageDraw, text: str, font: Any, center: tuple[float, float]) -> tuple[float, float]:
+    """Return a draw.text origin that visually centers the glyph bbox on ``center``."""
+    bbox = draw.textbbox((0, 0), text, font=font)
+    width = bbox[2] - bbox[0]
+    height = bbox[3] - bbox[1]
+    return (
+        center[0] - width / 2 - bbox[0],
+        center[1] - height / 2 - bbox[1],
+    )
+
+
 def render_poke_rank_image(
     output_path: str | os.PathLike[str],
     *,
@@ -275,8 +286,10 @@ def render_poke_rank_image(
             badge_fill = medal_fills[index - 1] if index <= 3 else "#E9E4EE"
             draw.ellipse((badge_x, badge_y, badge_x + 40, badge_y + 40), fill=badge_fill)
             rank_text = str(index)
-            rb = draw.textbbox((0, 0), rank_text, font=rank_font)
-            draw.text((badge_x + 20 - (rb[2] - rb[0]) / 2, badge_y + 20 - (rb[3] - rb[1]) / 2 - 1), rank_text, font=rank_font, fill="#4B4051")
+            rank_xy = center_text_xy(
+                draw, rank_text, rank_font, (badge_x + 20, badge_y + 20)
+            )
+            draw.text(rank_xy, rank_text, font=rank_font, fill="#4B4051")
 
             display_name = privacy_safe_label(user_id, display_names.get(str(user_id)))
             display_name = _truncate_label(display_name)
