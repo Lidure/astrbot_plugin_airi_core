@@ -72,11 +72,14 @@ def load_main():
     _install_stub("astrbot.core.agent.tool", FunctionTool=object)
     _install_stub("astrbot.api.message_components")
     _install_stub(
+        "avatar_rank_renderer",
+        render_poke_rank_image=lambda *args, **kwargs: None,
+    )
+    _install_stub(
         "poke_stats",
         PokeStatsStore=object,
         extract_onebot_profile_name=lambda *args, **kwargs: "",
         parse_bot_poke_notice=lambda raw: None,
-        render_poke_rank_image=lambda *args, **kwargs: None,
     )
 
     sys.path.insert(0, str(ROOT))
@@ -97,7 +100,7 @@ def load_main():
     return module, logger, cleanup
 
 
-class FakeAPI:
+class FakeCQHttp:
     def __init__(self, *, fail=False):
         self.fail = fail
         self.calls = []
@@ -109,9 +112,9 @@ class FakeAPI:
 
 
 class FakeEvent:
-    def __init__(self, raw_message, api):
+    def __init__(self, raw_message, bot):
         self.message_obj = types.SimpleNamespace(raw_message=raw_message)
-        self.bot = types.SimpleNamespace(api=api)
+        self.bot = bot
 
 
 async def drain_async_generator(generator):
@@ -131,7 +134,7 @@ class FriendRequestIntegrationTests(unittest.TestCase):
         return plugin
 
     def test_enabled_friend_request_calls_onebot_approve(self):
-        api = FakeAPI()
+        bot = FakeCQHttp()
         event = FakeEvent(
             {
                 "post_type": "request",
@@ -139,19 +142,19 @@ class FriendRequestIntegrationTests(unittest.TestCase):
                 "flag": "friend-flag",
                 "user_id": 123456,
             },
-            api,
+            bot,
         )
         plugin = self._plugin(True)
 
         asyncio.run(drain_async_generator(plugin.on_notice_event(event)))
 
         self.assertEqual(
-            api.calls,
+            bot.calls,
             [("set_friend_add_request", {"flag": "friend-flag", "approve": True})],
         )
 
     def test_disabled_friend_request_does_not_call_onebot(self):
-        api = FakeAPI()
+        bot = FakeCQHttp()
         event = FakeEvent(
             {
                 "post_type": "request",
@@ -159,16 +162,16 @@ class FriendRequestIntegrationTests(unittest.TestCase):
                 "flag": "friend-flag",
                 "user_id": 123456,
             },
-            api,
+            bot,
         )
         plugin = self._plugin(False)
 
         asyncio.run(drain_async_generator(plugin.on_notice_event(event)))
 
-        self.assertEqual(api.calls, [])
+        self.assertEqual(bot.calls, [])
 
     def test_non_friend_request_does_not_call_onebot(self):
-        api = FakeAPI()
+        bot = FakeCQHttp()
         event = FakeEvent(
             {
                 "post_type": "request",
@@ -176,16 +179,16 @@ class FriendRequestIntegrationTests(unittest.TestCase):
                 "flag": "group-flag",
                 "user_id": 123456,
             },
-            api,
+            bot,
         )
         plugin = self._plugin(True)
 
         asyncio.run(drain_async_generator(plugin.on_notice_event(event)))
 
-        self.assertEqual(api.calls, [])
+        self.assertEqual(bot.calls, [])
 
     def test_onebot_failure_is_logged_and_does_not_escape(self):
-        api = FakeAPI(fail=True)
+        bot = FakeCQHttp(fail=True)
         event = FakeEvent(
             {
                 "post_type": "request",
@@ -193,13 +196,13 @@ class FriendRequestIntegrationTests(unittest.TestCase):
                 "flag": "friend-flag",
                 "user_id": 123456,
             },
-            api,
+            bot,
         )
         plugin = self._plugin(True)
 
         asyncio.run(drain_async_generator(plugin.on_notice_event(event)))
 
-        self.assertEqual(len(api.calls), 1)
+        self.assertEqual(len(bot.calls), 1)
         self.assertTrue(any("OneBot failed" in message for message in self.logger.errors))
 
 
