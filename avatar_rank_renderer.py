@@ -65,6 +65,11 @@ def render_poke_rank_image(
 
     cache = avatar_cache or QqAvatarCache(output.parent / "avatar_cache")
     avatar_paths = _resolve_visible_avatars(entries, cache)
+    target_user_id = summary.get("target_user_id")
+    if target_user_id is not None:
+        target_user_id = str(target_user_id)
+        if target_user_id not in avatar_paths:
+            avatar_paths[target_user_id] = cache.get(target_user_id)
     display_names = summary.get("display_names") or {}
 
     with Image.open(output) as source:
@@ -98,6 +103,30 @@ def render_poke_rank_image(
             display_name,
             font=body_font,
             fill="#3B3242",
+        )
+
+    if target_user_id:
+        list_h = max(160, 28 + len(entries) * row_h)
+        query_y = list_top + list_h + gap
+        right = 960 - 34
+        draw.rectangle(
+            (left + 120, query_y + 8, right - 20, query_y + 78),
+            fill="#FFF0F6",
+        )
+        target_box = (left + 142, query_y + 19, left + 190, query_y + 67)
+        paste_circular_avatar(image, avatar_paths.get(target_user_id), target_box)
+        target_name = privacy_safe_label(
+            target_user_id, display_names.get(target_user_id)
+        )
+        target_name = _truncate_label(target_name, 12)
+        query_text = (
+            f"{target_name}  累计 {int(summary.get('target_user_count') or 0)} 次"
+        )
+        draw.text(
+            (left + 205, query_y + 27),
+            query_text,
+            font=body_font,
+            fill="#D94E83",
         )
 
     temp_output = output.with_name(output.stem + ".avatar.tmp" + output.suffix)
