@@ -16,20 +16,20 @@ from astrbot.core.agent.tool import FunctionTool
 import astrbot.api.message_components as Comp
 
 if __package__:
+    from .avatar_rank_renderer import render_poke_rank_image
     from .friend_requests import maybe_accept_friend_request
     from .poke_stats import (
         PokeStatsStore,
         extract_onebot_profile_name,
         parse_bot_poke_notice,
-        render_poke_rank_image,
     )
 else:
+    from avatar_rank_renderer import render_poke_rank_image
     from friend_requests import maybe_accept_friend_request
     from poke_stats import (
         PokeStatsStore,
         extract_onebot_profile_name,
         parse_bot_poke_notice,
-        render_poke_rank_image,
     )
 
 
