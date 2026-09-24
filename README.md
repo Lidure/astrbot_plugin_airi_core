@@ -1,10 +1,11 @@
 # astrbot_plugin_airi_core
 
-Airi 的 AstrBot 辅助核心插件，提供群管理、入群欢迎与 Poke 统计排行榜等功能。
+Airi 的 AstrBot 辅助核心插件，提供群管理、好友申请自动处理、入群欢迎与 Poke 统计排行榜等功能。
 
 ## 功能
 
 - LLM 群禁言工具，可配置允许的禁言时长范围。
+- 可选自动同意 OneBot / aiocqhttp 的 QQ 好友申请；默认关闭，不会自动处理群申请。
 - Bot 加入新群时发送自定义欢迎文字与图片。
 - 记录群友“戳一戳” Bot 的次数，每个 QQ 独立累计。
 - 提供每日当前群榜、每日所有群总榜，以及两套历史累计榜。
@@ -13,6 +14,15 @@ Airi 的 AstrBot 辅助核心插件，提供群管理、入群欢迎与 Poke 统
 - Poke 排行榜使用粉白 / 紫粉渐变卡片生成 PNG 图片，前三名突出显示。
 - 排行榜图片不展示完整 QQ 号：当前群优先显示群名片，其次 QQ 昵称；总榜显示 QQ 昵称；获取失败时使用匿名代号。
 - Poke 数据持久化保存，AstrBot 重启或插件重载后不会丢失。
+
+## 自动同意好友申请
+
+在 AstrBot 插件配置中开启 `auto_accept_friend_request` 后，插件会监听 OneBot v11 的好友申请事件，并调用 `set_friend_add_request` 自动同意申请。
+
+- 仅处理 `post_type=request` 且 `request_type=friend` 的好友申请。
+- 群申请不会自动同意或拒绝。
+- OneBot API 调用失败时只记录错误日志，不会中断插件的其他事件处理。
+- 该选项默认关闭，升级插件后不会改变现有好友申请策略。
 
 ## Poke 排行榜
 
@@ -83,6 +93,7 @@ data/plugin_data/astrbot_plugin_airi_core/poke_stats.json
 | `welcome_enabled` | `false` | 启用 Bot 入群欢迎 |
 | `welcome_message` | 内置欢迎语 | 欢迎文字 |
 | `welcome_images` | `[]` | 欢迎图片 |
+| `auto_accept_friend_request` | `false` | 自动同意 OneBot / aiocqhttp 好友申请 |
 | `poke_stats_enabled` | `true` | 启用 Poke 统计与排行榜 |
 | `poke_rank_limit` | `10` | 图片排行榜显示人数，范围 3~30 |
 
