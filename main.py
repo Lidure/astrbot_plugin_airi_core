@@ -17,7 +17,7 @@ import astrbot.api.message_components as Comp
 
 if __package__:
     from .avatar_rank_renderer import render_poke_rank_image
-    from .friend_requests import maybe_accept_friend_request
+    from .friend_requests import maybe_accept_friend_request, resolve_onebot_call_action
     from .poke_stats import (
         PokeStatsStore,
         extract_onebot_profile_name,
@@ -25,7 +25,7 @@ if __package__:
     )
 else:
     from avatar_rank_renderer import render_poke_rank_image
-    from friend_requests import maybe_accept_friend_request
+    from friend_requests import maybe_accept_friend_request, resolve_onebot_call_action
     from poke_stats import (
         PokeStatsStore,
         extract_onebot_profile_name,
@@ -136,8 +136,10 @@ class MuteTool(FunctionTool):
 
             if not isinstance(event, AiocqhttpMessageEvent):
                 return "当前事件不是 OneBot 群聊事件，不能执行禁言。"
-            client = event.bot
-            await client.api.call_action(
+            call_action = resolve_onebot_call_action(event)
+            if not callable(call_action):
+                return "当前 OneBot API 不可用，不能执行禁言。"
+            await call_action(
                 "set_group_ban",
                 group_id=int(group_id),
                 user_id=int(user_id),
@@ -300,9 +302,7 @@ class Main(Star):
         *,
         group_id: str | None = None,
     ) -> dict[str, str]:
-        bot = getattr(event, "bot", None)
-        api = getattr(bot, "api", None)
-        call_action = getattr(api, "call_action", None)
+        call_action = resolve_onebot_call_action(event)
         if not callable(call_action):
             return {}
 
@@ -546,9 +546,7 @@ class Main(Star):
             if not self.auto_accept_friend_request:
                 return
 
-            bot = getattr(event, "bot", None)
-            api = getattr(bot, "api", None)
-            call_action = getattr(api, "call_action", None)
+            call_action = resolve_onebot_call_action(event)
             if not callable(call_action):
                 if raw_message.get("request_type") == "friend":
                     logger.warning("收到好友申请，但当前 OneBot API 不可用，无法自动同意。")

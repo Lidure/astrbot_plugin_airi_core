@@ -11,6 +11,22 @@ class FriendRequestResult(NamedTuple):
     error: str | None = None
 
 
+def resolve_onebot_call_action(event: Any):
+    """Return OneBot's call_action callable from an AstrBot message event.
+
+    AstrBot's aiocqhttp adapter exposes CQHttp directly as ``event.bot``.
+    Keep ``event.bot.api`` as a compatibility fallback for older wrappers/tests.
+    """
+    bot = getattr(event, "bot", None)
+    direct = getattr(bot, "call_action", None)
+    if callable(direct):
+        return direct
+
+    api = getattr(bot, "api", None)
+    nested = getattr(api, "call_action", None)
+    return nested if callable(nested) else None
+
+
 async def maybe_accept_friend_request(
     raw_message: Any,
     call_action: Callable[..., Awaitable[Any]],
