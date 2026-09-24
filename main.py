@@ -16,6 +16,7 @@ from astrbot.core.agent.tool import FunctionTool
 import astrbot.api.message_components as Comp
 
 if __package__:
+    from .friend_requests import maybe_accept_friend_request
     from .poke_stats import (
         PokeStatsStore,
         extract_onebot_profile_name,
@@ -23,6 +24,7 @@ if __package__:
         render_poke_rank_image,
     )
 else:
+    from friend_requests import maybe_accept_friend_request
     from poke_stats import (
         PokeStatsStore,
         extract_onebot_profile_name,
@@ -179,6 +181,9 @@ class Main(Star):
             "welcome_message", "你好！我是 Airi，很高兴加入这个群聊！"
         )
         self.welcome_images = self.config.get("welcome_images", [])
+        self.auto_accept_friend_request = bool(
+            self.config.get("auto_accept_friend_request", False)
+        )
 
         self.poke_stats_enabled = bool(self.config.get("poke_stats_enabled", True))
         self.poke_rank_limit = max(
@@ -196,6 +201,7 @@ class Main(Star):
             f"Airi 核心工具已加载 | 禁言工具: {'启用' if self.mute_tool_enabled else '未启用'}"
             f" | 时长范围: {self.mute_duration_min}~{self.mute_duration_max} 分钟"
             f" | 入群欢迎: {'启用' if self.welcome_enabled else '未启用'}"
+            f" | 自动同意好友: {'启用' if self.auto_accept_friend_request else '未启用'}"
             f" | Poke统计: {'启用' if self.poke_stats_enabled else '未启用'}"
             " | Poke日榜切日: 04:00"
         )
@@ -533,7 +539,37 @@ class Main(Star):
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_notice_event(self, event: AstrMessageEvent):
         raw_message = event.message_obj.raw_message
-        if not isinstance(raw_message, dict) or raw_message.get("post_type") != "notice":
+        if not isinstance(raw_message, dict):
+            return
+
+        if raw_message.get("post_type") == "request":
+            if not self.auto_accept_friend_request:
+                return
+
+            bot = getattr(event, "bot", None)
+            api = getattr(bot, "api", None)
+            call_action = getattr(api, "call_action", None)
+            if not callable(call_action):
+                if raw_message.get("request_type") == "friend":
+                    logger.warning("收到好友申请，但当前 OneBot API 不可用，无法自动同意。")
+                return
+
+            result = await maybe_accept_friend_request(
+                raw_message,
+                call_action,
+                enabled=True,
+            )
+            if result.matched:
+                if result.approved:
+                    logger.info(f"已自动同意好友申请: user={result.user_id or 'unknown'}")
+                else:
+                    logger.error(
+                        f"自动同意好友申请失败: user={result.user_id or 'unknown'}, "
+                        f"error={result.error or 'unknown'}"
+                    )
+            return
+
+        if raw_message.get("post_type") != "notice":
             return
 
         poke = parse_bot_poke_notice(raw_message)
