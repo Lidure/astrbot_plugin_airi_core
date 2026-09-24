@@ -94,6 +94,38 @@ class AvatarRankRendererTests(unittest.TestCase):
             )
             self.assertCountEqual(cache.calls, ["1", "2"])
 
+    def test_target_query_card_uses_target_avatar_even_outside_visible_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            avatar = tmp / "blue.png"
+            Image.new("RGB", (60, 60), (10, 30, 240)).save(avatar)
+            out = tmp / "rank.png"
+            cache = FakeCache({"999": str(avatar)})
+            summary = {
+                "entries": [("123", 5)],
+                "display_names": {"123": "Alice", "999": "Bob"},
+                "total_pokes": 5,
+                "unique_users": 1,
+                "updated_at": None,
+                "target_user_id": "999",
+                "target_user_count": 2,
+                "is_daily": True,
+                "is_global_scope": False,
+                "group_total_rank": 1,
+                "group_total_groups": 1,
+            }
+            render_poke_rank_image(
+                out,
+                title="T",
+                subtitle="S",
+                summary=summary,
+                avatar_cache=cache,
+            )
+            # list_top=202, list_h=160, query_y=382; target avatar center=(200,425).
+            with Image.open(out) as image:
+                self.assertEqual(image.getpixel((200, 425)), (10, 30, 240))
+            self.assertCountEqual(cache.calls, ["123", "999"])
+
 
 if __name__ == "__main__":
     unittest.main()
