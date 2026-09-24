@@ -36,6 +36,12 @@
     "default": [],
     "file_types": ["jpg", "jpeg", "png", "gif", "webp"]
   },
+  "auto_accept_friend_request": {
+    "type": "bool",
+    "description": "自动同意好友申请",
+    "hint": "开启后，收到 OneBot (aiocqhttp) 好友申请时会自动同意。群申请不会自动处理。",
+    "default": false
+  },
   "poke_stats_enabled": {
     "type": "bool",
     "description": "启用 Poke 统计排行榜",
