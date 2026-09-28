@@ -15,16 +15,16 @@ def _install_stub(name, **attrs):
     return module
 
 
-class PackageImportTests(unittest.TestCase):
-    def test_main_imports_poke_stats_inside_plugin_package(self):
+class RequestApprovalPackageImportTests(unittest.TestCase):
+    def test_main_imports_request_approval_inside_plugin_package(self):
         original_path = list(sys.path)
         original_modules = dict(sys.modules)
         try:
+            sys.modules.pop("request_approval", None)
             sys.path[:] = [
                 entry for entry in sys.path
                 if Path(entry or ".").resolve() != ROOT
             ]
-            sys.modules.pop("poke_stats", None)
 
             _install_stub("pydantic", Field=lambda *args, **kwargs: kwargs.get("default"))
             _install_stub(
@@ -67,20 +67,35 @@ class PackageImportTests(unittest.TestCase):
             _install_stub("astrbot.core.agent.tool", FunctionTool=object)
             _install_stub("astrbot.api.message_components")
 
-            package_name = "airi_core_plugin"
+            package_name = "airi_core_plugin_request_test"
             package = types.ModuleType(package_name)
             package.__path__ = [str(ROOT)]
             sys.modules[package_name] = package
+            _install_stub(
+                f"{package_name}.avatar_rank_renderer",
+                render_poke_rank_image=lambda *args, **kwargs: None,
+            )
+            _install_stub(
+                f"{package_name}.friend_requests",
+                resolve_onebot_call_action=lambda event: None,
+            )
+            _install_stub(
+                f"{package_name}.poke_stats",
+                PokeStatsStore=object,
+                extract_onebot_profile_name=lambda *args, **kwargs: "",
+                parse_bot_poke_notice=lambda raw: None,
+            )
 
             spec = importlib.util.spec_from_file_location(
                 f"{package_name}.main", ROOT / "main.py"
             )
             module = importlib.util.module_from_spec(spec)
             sys.modules[spec.name] = module
-
+            assert spec.loader is not None
             spec.loader.exec_module(module)
-            self.assertIn(f"{package_name}.poke_stats", sys.modules)
-            self.assertNotIn("poke_stats", sys.modules)
+
+            self.assertIn(f"{package_name}.request_approval", sys.modules)
+            self.assertNotIn("request_approval", sys.modules)
         finally:
             sys.path[:] = original_path
             for name in list(sys.modules):

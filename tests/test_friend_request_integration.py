@@ -23,7 +23,6 @@ def load_main():
         def __init__(self):
             self.infos = []
             self.errors = []
-            self.warnings = []
 
         def info(self, message, *args, **kwargs):
             self.infos.append(str(message))
@@ -31,14 +30,14 @@ def load_main():
         def error(self, message, *args, **kwargs):
             self.errors.append(str(message))
 
-        def warning(self, message, *args, **kwargs):
-            self.warnings.append(str(message))
+        def warning(self, *args, **kwargs):
+            pass
 
         def debug(self, *args, **kwargs):
             pass
 
-        def exception(self, message, *args, **kwargs):
-            self.errors.append(str(message))
+        def exception(self, *args, **kwargs):
+            pass
 
     logger = DummyLogger()
 
@@ -52,6 +51,10 @@ def load_main():
 
         @staticmethod
         def event_message_type(*args, **kwargs):
+            return lambda func: func
+
+        @staticmethod
+        def platform_adapter_type(*args, **kwargs):
             return lambda func: func
 
     class DummyStar:
@@ -71,10 +74,9 @@ def load_main():
     _install_stub("astrbot.core.agent")
     _install_stub("astrbot.core.agent.tool", FunctionTool=object)
     _install_stub("astrbot.api.message_components")
-    _install_stub(
-        "avatar_rank_renderer",
-        render_poke_rank_image=lambda *args, **kwargs: None,
-    )
+    _install_stub("avatar_rank_renderer", render_poke_rank_image=lambda *args, **kwargs: None)
+    _install_stub("friend_requests", resolve_onebot_call_action=lambda event: None)
+    _install_stub("request_approval", RequestApprovalManager=object)
     _install_stub(
         "poke_stats",
         PokeStatsStore=object,
@@ -100,25 +102,14 @@ def load_main():
     return module, logger, cleanup
 
 
-class FakeCQHttp:
-    def __init__(self, *, fail=False):
-        self.fail = fail
+class FakeApprovalManager:
+    def __init__(self, result):
+        self.result = result
         self.calls = []
 
-    async def call_action(self, action, **kwargs):
-        self.calls.append((action, kwargs))
-        if self.fail:
-            raise RuntimeError("OneBot failed")
-
-
-class FakeEvent:
-    def __init__(self, raw_message, bot):
-        self.message_obj = types.SimpleNamespace(raw_message=raw_message)
-        self.bot = bot
-
-
-async def drain_async_generator(generator):
-    return [item async for item in generator]
+    async def handle_request(self, event, **kwargs):
+        self.calls.append((event, kwargs))
+        return self.result
 
 
 class FriendRequestIntegrationTests(unittest.TestCase):
@@ -128,82 +119,41 @@ class FriendRequestIntegrationTests(unittest.TestCase):
     def tearDown(self):
         self.cleanup()
 
-    def _plugin(self, enabled):
+    def _plugin(self, result, *, auto=True, manual=False, qq="90001"):
         plugin = object.__new__(self.module.Main)
-        plugin.auto_accept_friend_request = enabled
+        plugin.auto_accept_friend_request = auto
+        plugin.request_approval_enabled = manual
+        plugin.request_approval_qq = qq
+        plugin._request_approval = FakeApprovalManager(result)
         return plugin
 
-    def test_enabled_friend_request_calls_onebot_approve(self):
-        bot = FakeCQHttp()
-        event = FakeEvent(
-            {
-                "post_type": "request",
-                "request_type": "friend",
-                "flag": "friend-flag",
-                "user_id": 123456,
-            },
-            bot,
-        )
-        plugin = self._plugin(True)
+    def test_request_handler_passes_current_settings_to_manager(self):
+        plugin = self._plugin("auto_approved_friend", auto=True, manual=True)
+        event = object()
 
-        asyncio.run(drain_async_generator(plugin.on_notice_event(event)))
+        asyncio.run(plugin.on_request(event))
 
+        self.assertEqual(len(plugin._request_approval.calls), 1)
+        _, kwargs = plugin._request_approval.calls[0]
         self.assertEqual(
-            bot.calls,
-            [("set_friend_add_request", {"flag": "friend-flag", "approve": True})],
-        )
-
-    def test_disabled_friend_request_does_not_call_onebot(self):
-        bot = FakeCQHttp()
-        event = FakeEvent(
+            kwargs,
             {
-                "post_type": "request",
-                "request_type": "friend",
-                "flag": "friend-flag",
-                "user_id": 123456,
+                "auto_accept_friend": True,
+                "approval_enabled": True,
+                "approval_qq": "90001",
             },
-            bot,
         )
-        plugin = self._plugin(False)
+        self.assertTrue(any("自动同意好友申请" in msg for msg in self.logger.infos))
 
-        asyncio.run(drain_async_generator(plugin.on_notice_event(event)))
+    def test_manual_queue_result_is_logged(self):
+        plugin = self._plugin("queued_group_invite", auto=False, manual=True)
+        asyncio.run(plugin.on_request(object()))
+        self.assertTrue(any("指定审批 QQ" in msg for msg in self.logger.infos))
 
-        self.assertEqual(bot.calls, [])
-
-    def test_non_friend_request_does_not_call_onebot(self):
-        bot = FakeCQHttp()
-        event = FakeEvent(
-            {
-                "post_type": "request",
-                "request_type": "group",
-                "flag": "group-flag",
-                "user_id": 123456,
-            },
-            bot,
-        )
-        plugin = self._plugin(True)
-
-        asyncio.run(drain_async_generator(plugin.on_notice_event(event)))
-
-        self.assertEqual(bot.calls, [])
-
-    def test_onebot_failure_is_logged_and_does_not_escape(self):
-        bot = FakeCQHttp(fail=True)
-        event = FakeEvent(
-            {
-                "post_type": "request",
-                "request_type": "friend",
-                "flag": "friend-flag",
-                "user_id": 123456,
-            },
-            bot,
-        )
-        plugin = self._plugin(True)
-
-        asyncio.run(drain_async_generator(plugin.on_notice_event(event)))
-
-        self.assertEqual(len(bot.calls), 1)
-        self.assertTrue(any("OneBot failed" in message for message in self.logger.errors))
+    def test_auto_approval_failure_is_logged_without_raising(self):
+        plugin = self._plugin("auto_approve_failed", auto=True)
+        asyncio.run(plugin.on_request(object()))
+        self.assertTrue(any("自动同意好友申请失败" in msg for msg in self.logger.errors))
 
 
 if __name__ == "__main__":

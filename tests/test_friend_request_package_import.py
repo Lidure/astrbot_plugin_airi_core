@@ -16,10 +16,12 @@ def _install_stub(name, **attrs):
 
 
 class FriendRequestPackageImportTests(unittest.TestCase):
-    def test_main_imports_friend_requests_inside_plugin_package(self):
+    def test_main_imports_request_helpers_inside_plugin_package(self):
         original_path = list(sys.path)
         original_modules = dict(sys.modules)
         try:
+            sys.modules.pop("friend_requests", None)
+            sys.modules.pop("request_approval", None)
             sys.path[:] = [
                 entry for entry in sys.path
                 if Path(entry or ".").resolve() != ROOT
@@ -49,6 +51,10 @@ class FriendRequestPackageImportTests(unittest.TestCase):
                 def event_message_type(*args, **kwargs):
                     return lambda func: func
 
+                @staticmethod
+                def platform_adapter_type(*args, **kwargs):
+                    return lambda func: func
+
             class DummyStar:
                 def __init__(self, *args, **kwargs):
                     pass
@@ -67,11 +73,14 @@ class FriendRequestPackageImportTests(unittest.TestCase):
             package.__path__ = [str(ROOT)]
             sys.modules[package_name] = package
             _install_stub(
+                f"{package_name}.avatar_rank_renderer",
+                render_poke_rank_image=lambda *args, **kwargs: None,
+            )
+            _install_stub(
                 f"{package_name}.poke_stats",
                 PokeStatsStore=object,
                 extract_onebot_profile_name=lambda *args, **kwargs: "",
                 parse_bot_poke_notice=lambda raw: None,
-                render_poke_rank_image=lambda *args, **kwargs: None,
             )
 
             spec = importlib.util.spec_from_file_location(
@@ -83,7 +92,9 @@ class FriendRequestPackageImportTests(unittest.TestCase):
             spec.loader.exec_module(module)
 
             self.assertIn(f"{package_name}.friend_requests", sys.modules)
+            self.assertIn(f"{package_name}.request_approval", sys.modules)
             self.assertNotIn("friend_requests", sys.modules)
+            self.assertNotIn("request_approval", sys.modules)
         finally:
             sys.path[:] = original_path
             for name in list(sys.modules):
