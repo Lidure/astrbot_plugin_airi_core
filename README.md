@@ -1,29 +1,76 @@
 # astrbot_plugin_airi_core
 
-Airi 的 AstrBot 辅助核心插件，提供群管理、好友申请自动处理、入群欢迎与 Poke 统计排行榜等功能。
+Airi 的 AstrBot 辅助核心插件，提供群管理、好友/群邀请审批、入群欢迎与 Poke 统计排行榜等功能。
 
 ## 功能
 
 - LLM 群禁言工具，可配置允许的禁言时长范围。
-- 可选自动同意 OneBot / aiocqhttp 的 QQ 好友申请；默认关闭，不会自动处理群申请。
+- 可选自动同意 OneBot / aiocqhttp 的 QQ 好友申请。
+- 可选好友申请 / 邀请 Bot 入群人工审批：请求会私聊发送给指定 QQ，由指定 QQ 决定同意或拒绝。
 - Bot 加入新群时发送自定义欢迎文字与图片。
 - 记录群友“戳一戳” Bot 的次数，每个 QQ 独立累计。
 - 提供每日当前群榜、每日所有群总榜，以及两套历史累计榜。
 - 每日榜以服务器本地时间 **04:00** 为统计日切换点，不依赖定时任务清空数据。
-- 当前群日榜与历史榜将“本群总次数 / 参与用户 / 群排名”放在底部统计卡中；顶部仅保留榜单类型与 04:00 刷新提示，避免 `TOP 10` 等歧义。
+- 当前群日榜与历史榜将“本群总次数 / 参与用户 / 群排名”放在底部统计卡中；顶部仅保留榜单类型与 04:00 刷新提示。
 - Poke 排行榜使用粉白 / 紫粉渐变卡片生成 PNG 图片，前三名突出显示，并为每个上榜 QQ 显示圆形头像。
-- QQ 头像通过公开 qlogo 地址获取并在本地缓存 24 小时；网络失败时优先使用旧缓存，没有缓存则绘制默认占位头像，因此不会因为头像获取失败导致排行榜生成失败。
+- QQ 头像通过公开 qlogo 地址获取并在本地缓存 24 小时；网络失败时优先使用旧缓存，没有缓存则绘制默认占位头像。
 - 排行榜图片不展示完整 QQ 号：当前群优先显示群名片，其次 QQ 昵称；总榜显示 QQ 昵称；获取失败时使用匿名代号。
 - Poke 数据持久化保存，AstrBot 重启或插件重载后不会丢失。
 
-## 自动同意好友申请
+## 好友申请与群邀请
 
-在 AstrBot 插件配置中开启 `auto_accept_friend_request` 后，插件会监听 OneBot v11 的好友申请事件，并调用 `set_friend_add_request` 自动同意申请。
+v1.3.5 起，请求事件按照 AstrBot aiocqhttp 的请求处理方式独立监听，不再混在 notice/Poke 事件处理器中；审批动作直接使用 CQHttp 提供的 `set_friend_add_request` 与 `set_group_add_request`。
 
-- 仅处理 `post_type=request` 且 `request_type=friend` 的好友申请。
-- 群申请不会自动同意或拒绝。
-- OneBot API 调用失败时只记录错误日志，不会中断插件的其他事件处理。
-- 该选项默认关闭，升级插件后不会改变现有好友申请策略。
+### 自动同意好友申请
+
+在插件配置中开启 `auto_accept_friend_request` 后：
+
+- 收到 `post_type=request`、`request_type=friend` 的好友申请时，直接调用 `event.bot.set_friend_add_request(..., approve=True)`。
+- 该选项默认关闭。
+- 只自动处理好友申请，不自动同意群邀请。
+- 若同时开启人工审批，**好友申请优先自动同意，不再发送审批通知**；群邀请仍然走人工审批。
+
+### 人工审批
+
+配置：
+
+- `request_approval_enabled=true`
+- `request_approval_qq=你的审批 QQ 号`
+
+开启后，需要人工处理的好友申请以及邀请 Bot 入群请求会私聊发送到指定 QQ。每个请求都有独立编号，例如：
+
+```text
+【好友申请】A001
+昵称：示例用户
+QQ：123456789
+验证信息：你好
+
+回复 /同意申请 A001 或 /拒绝申请 A001
+```
+
+群邀请会同时显示邀请人、群名称与群号。
+
+只有配置的 `request_approval_qq` 有权限执行：
+
+| 指令 | 说明 |
+| --- | --- |
+| `/同意申请 A001` | 同意对应好友申请或群邀请 |
+| `/拒绝申请 A001` | 拒绝对应好友申请或群邀请 |
+
+处理规则：
+
+- 好友申请：调用 `set_friend_add_request(flag=..., approve=...)`。
+- 群邀请：调用 `set_group_add_request(flag=..., sub_type="invite", approve=...)`。
+- 审批成功后，对应待审批记录立即删除。
+- OneBot 审批失败时保留记录，可以稍后再次执行审批命令。
+- 非指定 QQ 执行审批命令会提示无权限。
+- 待审批信息会持久化，因此 AstrBot 重启后仍可继续处理。
+
+待审批数据保存在：
+
+```text
+data/plugin_data/astrbot_plugin_airi_core/pending_requests.json
+```
 
 ## Poke 排行榜
 
@@ -104,6 +151,8 @@ data/plugin_data/astrbot_plugin_airi_core/avatar_cache/
 | `welcome_message` | 内置欢迎语 | 欢迎文字 |
 | `welcome_images` | `[]` | 欢迎图片 |
 | `auto_accept_friend_request` | `false` | 自动同意 OneBot / aiocqhttp 好友申请 |
+| `request_approval_enabled` | `false` | 启用好友申请 / 群邀请人工审批 |
+| `request_approval_qq` | 空 | 接收审批通知并有权执行审批命令的 QQ |
 | `poke_stats_enabled` | `true` | 启用 Poke 统计与排行榜 |
 | `poke_rank_limit` | `10` | 图片排行榜显示人数，范围 3~30 |
 
