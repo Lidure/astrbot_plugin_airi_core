@@ -1,5 +1,6 @@
 import asyncio
 import tempfile
+import types
 import unittest
 from pathlib import Path
 
@@ -33,8 +34,17 @@ class FakeEvent:
     ):
         self.bot = FakeBot()
         self.message_str = text
+        self.message_obj = types.SimpleNamespace(
+            raw_message={
+                "post_type": "message",
+                "message_type": "private" if private else "group",
+                "user_id": int(sender),
+                "raw_message": text,
+            }
+        )
         self._sender = sender
         self._private = private
+        self.stopped = False
 
     def get_sender_id(self):
         return self._sender
@@ -44,6 +54,9 @@ class FakeEvent:
 
     def is_private_chat(self):
         return self._private
+
+    def stop_event(self):
+        self.stopped = True
 
 
 class SnowlumaFriendFallbackTests(unittest.TestCase):
@@ -57,7 +70,7 @@ class SnowlumaFriendFallbackTests(unittest.TestCase):
         manager = self._manager()
 
         result = asyncio.run(
-            manager.handle_snowluma_friend_prompt(
+            manager.handle_request(
                 event,
                 auto_accept_friend=True,
                 approval_enabled=False,
@@ -66,6 +79,7 @@ class SnowlumaFriendFallbackTests(unittest.TestCase):
         )
 
         self.assertEqual(result, "auto_approved_friend")
+        self.assertTrue(event.stopped)
         self.assertEqual(
             event.bot.calls,
             [
@@ -81,7 +95,7 @@ class SnowlumaFriendFallbackTests(unittest.TestCase):
         manager = self._manager()
 
         result = asyncio.run(
-            manager.handle_snowluma_friend_prompt(
+            manager.handle_request(
                 event,
                 auto_accept_friend=False,
                 approval_enabled=True,
@@ -90,6 +104,7 @@ class SnowlumaFriendFallbackTests(unittest.TestCase):
         )
 
         self.assertEqual(result, "queued_friend")
+        self.assertTrue(event.stopped)
         self.assertEqual(len(event.bot.messages), 1)
         self.assertEqual(event.bot.messages[0]["user_id"], 2542219495)
         self.assertIn("A001", event.bot.messages[0]["message"])
@@ -98,17 +113,19 @@ class SnowlumaFriendFallbackTests(unittest.TestCase):
     def test_ignores_non_system_text_or_group_message(self):
         manager = self._manager()
 
+        normal_event = FakeEvent(text="你好")
         normal_text = asyncio.run(
-            manager.handle_snowluma_friend_prompt(
-                FakeEvent(text="你好"),
+            manager.handle_request(
+                normal_event,
                 auto_accept_friend=True,
                 approval_enabled=True,
                 approval_qq="2542219495",
             )
         )
+        group_event = FakeEvent(private=False)
         group_message = asyncio.run(
-            manager.handle_snowluma_friend_prompt(
-                FakeEvent(private=False),
+            manager.handle_request(
+                group_event,
                 auto_accept_friend=True,
                 approval_enabled=True,
                 approval_qq="2542219495",
@@ -116,7 +133,9 @@ class SnowlumaFriendFallbackTests(unittest.TestCase):
         )
 
         self.assertEqual(normal_text, "ignored")
+        self.assertFalse(normal_event.stopped)
         self.assertEqual(group_message, "ignored")
+        self.assertFalse(group_event.stopped)
 
 
 if __name__ == "__main__":
