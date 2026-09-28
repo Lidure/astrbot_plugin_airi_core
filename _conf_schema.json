@@ -39,8 +39,20 @@
   "auto_accept_friend_request": {
     "type": "bool",
     "description": "自动同意好友申请",
-    "hint": "开启后，收到 OneBot (aiocqhttp) 好友申请时会自动同意。群申请不会自动处理。",
+    "hint": "开启后，收到 OneBot (aiocqhttp) 好友申请时直接调用 set_friend_add_request 自动同意。开启后好友申请不会再进入人工审批；群邀请仍可人工审批。",
     "default": false
+  },
+  "request_approval_enabled": {
+    "type": "bool",
+    "description": "启用好友/群邀请人工审批",
+    "hint": "开启后，需要手动同意的好友申请和邀请 Bot 入群请求会私聊通知指定审批 QQ。若同时开启自动同意好友，好友申请优先自动通过，群邀请仍通知审批。",
+    "default": false
+  },
+  "request_approval_qq": {
+    "type": "string",
+    "description": "请求审批 QQ",
+    "hint": "接收好友申请/群邀请通知并执行审批的 QQ 号。该 QQ 可使用 /同意申请 A001 或 /拒绝申请 A001。",
+    "default": ""
   },
   "poke_stats_enabled": {
     "type": "bool",
