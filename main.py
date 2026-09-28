@@ -17,7 +17,8 @@ import astrbot.api.message_components as Comp
 
 if __package__:
     from .avatar_rank_renderer import render_poke_rank_image
-    from .friend_requests import maybe_accept_friend_request, resolve_onebot_call_action
+    from .friend_requests import resolve_onebot_call_action
+    from .request_approval import RequestApprovalManager
     from .poke_stats import (
         PokeStatsStore,
         extract_onebot_profile_name,
@@ -25,7 +26,8 @@ if __package__:
     )
 else:
     from avatar_rank_renderer import render_poke_rank_image
-    from friend_requests import maybe_accept_friend_request, resolve_onebot_call_action
+    from friend_requests import resolve_onebot_call_action
+    from request_approval import RequestApprovalManager
     from poke_stats import (
         PokeStatsStore,
         extract_onebot_profile_name,
@@ -186,6 +188,12 @@ class Main(Star):
         self.auto_accept_friend_request = bool(
             self.config.get("auto_accept_friend_request", False)
         )
+        self.request_approval_enabled = bool(
+            self.config.get("request_approval_enabled", False)
+        )
+        self.request_approval_qq = str(
+            self.config.get("request_approval_qq", "") or ""
+        ).strip()
 
         self.poke_stats_enabled = bool(self.config.get("poke_stats_enabled", True))
         self.poke_rank_limit = max(
@@ -194,6 +202,9 @@ class Main(Star):
         self._poke_lock = asyncio.Lock()
         self._plugin_data_dir = self._get_plugin_data_dir()
         self._poke_store = PokeStatsStore(self._plugin_data_dir / "poke_stats.json")
+        self._request_approval = RequestApprovalManager(
+            self._plugin_data_dir / "pending_requests.json"
+        )
 
         if self.mute_tool_enabled:
             self.context.add_llm_tools(MuteTool(plugin=self))
@@ -204,6 +215,8 @@ class Main(Star):
             f" | 时长范围: {self.mute_duration_min}~{self.mute_duration_max} 分钟"
             f" | 入群欢迎: {'启用' if self.welcome_enabled else '未启用'}"
             f" | 自动同意好友: {'启用' if self.auto_accept_friend_request else '未启用'}"
+            f" | 人工审批: {'启用' if self.request_approval_enabled else '未启用'}"
+            f" | 审批QQ: {self.request_approval_qq or '未配置'}"
             f" | Poke统计: {'启用' if self.poke_stats_enabled else '未启用'}"
             " | Poke日榜切日: 04:00"
         )
@@ -536,35 +549,52 @@ class Main(Star):
         )
         yield result
 
+    @filter.platform_adapter_type("aiocqhttp")
+    async def on_request(self, event: AstrMessageEvent):
+        """处理好友申请与邀请 Bot 入群的请求事件。"""
+        result = await self._request_approval.handle_request(
+            event,
+            auto_accept_friend=self.auto_accept_friend_request,
+            approval_enabled=self.request_approval_enabled,
+            approval_qq=self.request_approval_qq,
+        )
+        if result == "auto_approved_friend":
+            logger.info("已自动同意好友申请。")
+        elif result == "auto_approve_failed":
+            logger.error("自动同意好友申请失败，请检查 OneBot/NapCat 日志。")
+        elif result in {"queued_friend", "queued_group_invite"}:
+            logger.info("新的好友/群邀请已发送给指定审批 QQ。")
+        elif result == "notify_failed":
+            logger.error("请求已收到，但通知指定审批 QQ 失败。")
+
+    @filter.platform_adapter_type("aiocqhttp")
+    @filter.command("同意申请")
+    async def approve_request(self, event: AstrMessageEvent, request_id: str = ""):
+        """同意待审批的好友申请或群邀请。"""
+        text = await self._request_approval.review(
+            event,
+            request_id,
+            approve=True,
+            approval_qq=self.request_approval_qq,
+        )
+        yield event.plain_result(text)
+
+    @filter.platform_adapter_type("aiocqhttp")
+    @filter.command("拒绝申请")
+    async def reject_request(self, event: AstrMessageEvent, request_id: str = ""):
+        """拒绝待审批的好友申请或群邀请。"""
+        text = await self._request_approval.review(
+            event,
+            request_id,
+            approve=False,
+            approval_qq=self.request_approval_qq,
+        )
+        yield event.plain_result(text)
+
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_notice_event(self, event: AstrMessageEvent):
         raw_message = event.message_obj.raw_message
         if not isinstance(raw_message, dict):
-            return
-
-        if raw_message.get("post_type") == "request":
-            if not self.auto_accept_friend_request:
-                return
-
-            call_action = resolve_onebot_call_action(event)
-            if not callable(call_action):
-                if raw_message.get("request_type") == "friend":
-                    logger.warning("收到好友申请，但当前 OneBot API 不可用，无法自动同意。")
-                return
-
-            result = await maybe_accept_friend_request(
-                raw_message,
-                call_action,
-                enabled=True,
-            )
-            if result.matched:
-                if result.approved:
-                    logger.info(f"已自动同意好友申请: user={result.user_id or 'unknown'}")
-                else:
-                    logger.error(
-                        f"自动同意好友申请失败: user={result.user_id or 'unknown'}, "
-                        f"error={result.error or 'unknown'}"
-                    )
             return
 
         if raw_message.get("post_type") != "notice":
