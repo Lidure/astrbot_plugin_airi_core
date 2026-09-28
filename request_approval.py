@@ -206,12 +206,17 @@ class RequestApprovalManager:
     ) -> str:
         raw = getattr(getattr(event, "message_obj", None), "raw_message", None)
         request = self._parse_raw(raw)
-        if not request:
-            return "ignored"
+        if request:
+            return await self._handle_request_data(
+                event,
+                request,
+                auto_accept_friend=auto_accept_friend,
+                approval_enabled=approval_enabled,
+                approval_qq=approval_qq,
+            )
 
-        return await self._handle_request_data(
+        return await self.handle_snowluma_friend_prompt(
             event,
-            request,
             auto_accept_friend=auto_accept_friend,
             approval_enabled=approval_enabled,
             approval_qq=approval_qq,
@@ -231,7 +236,7 @@ class RequestApprovalManager:
         private-message text ``请求添加你为好友`` instead of emitting a OneBot
         ``post_type=request`` event. Snowluma's ``set_friend_add_request``
         accepts the applicant UIN in ``flag``, so the sender QQ can be used as
-        a safe compatibility fallback without modifying Snowluma or AstrBot.
+        a compatibility fallback without modifying Snowluma or AstrBot.
         """
         if not auto_accept_friend and not approval_enabled:
             return "ignored"
@@ -254,6 +259,10 @@ class RequestApprovalManager:
         get_self_id = getattr(event, "get_self_id", None)
         if callable(get_self_id) and user_id == str(get_self_id() or "").strip():
             return "ignored"
+
+        stop_event = getattr(event, "stop_event", None)
+        if callable(stop_event):
+            stop_event()
 
         request = {
             "kind": "friend",
