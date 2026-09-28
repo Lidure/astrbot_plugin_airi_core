@@ -50,6 +50,10 @@ class PackageImportTests(unittest.TestCase):
                 def event_message_type(*args, **kwargs):
                     return lambda func: func
 
+                @staticmethod
+                def platform_adapter_type(*args, **kwargs):
+                    return lambda func: func
+
             class DummyStar:
                 def __init__(self, *args, **kwargs):
                     pass
