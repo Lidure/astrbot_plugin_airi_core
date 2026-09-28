@@ -20,6 +20,8 @@ class FriendRequestPackageImportTests(unittest.TestCase):
         original_path = list(sys.path)
         original_modules = dict(sys.modules)
         try:
+            sys.modules.pop("friend_requests", None)
+            sys.modules.pop("request_approval", None)
             sys.path[:] = [
                 entry for entry in sys.path
                 if Path(entry or ".").resolve() != ROOT
