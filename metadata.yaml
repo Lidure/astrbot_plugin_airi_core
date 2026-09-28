@@ -1,7 +1,7 @@
 name: astrbot_plugin_airi_core
 display_name: Airi 核心工具🌸
 short_desc: Airi 核心辅助插件，提供群管理、好友/群邀请审批、入群欢迎与带 QQ 头像的 Poke 图片排行榜。
-desc: Airi 核心辅助插件，支持 LLM 群禁言、OneBot 好友申请自动同意或指定 QQ 人工审批、群邀请人工审批、Bot 入群欢迎，以及每日 04:00 切日、带 QQ 头像的群内/全局 Poke 日榜与历史累计榜。
-version: v1.3.5
+desc: Airi 核心辅助插件，支持 LLM 群禁言、OneBot/Snowluma 好友申请自动同意或指定 QQ 人工审批、群邀请人工审批、Bot 入群欢迎，以及每日 04:00 切日、带 QQ 头像的群内/全局 Poke 日榜与历史累计榜。
+version: v1.3.6
 author: Lidure
 repo: https://github.com/Lidure/astrbot_plugin_airi_core

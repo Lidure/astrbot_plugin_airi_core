@@ -7,6 +7,7 @@ Airi 的 AstrBot 辅助核心插件，提供群管理、好友/群邀请审批�
 - LLM 群禁言工具，可配置允许的禁言时长范围。
 - 可选自动同意 OneBot / aiocqhttp 的 QQ 好友申请。
 - 可选好友申请 / 邀请 Bot 入群人工审批：请求会私聊发送给指定 QQ，由指定 QQ 决定同意或拒绝。
+- 兼容 Snowluma 将好友申请上报成普通私聊“请求添加你为好友”的情况，无需修改 Snowluma / OneBot / AstrBot 内部代码。
 - Bot 加入新群时发送自定义欢迎文字与图片。
 - 记录群友“戳一戳” Bot 的次数，每个 QQ 独立累计。
 - 提供每日当前群榜、每日所有群总榜，以及两套历史累计榜。
@@ -21,11 +22,16 @@ Airi 的 AstrBot 辅助核心插件，提供群管理、好友/群邀请审批�
 
 v1.3.5 起，请求事件按照 AstrBot aiocqhttp 的请求处理方式独立监听，不再混在 notice/Poke 事件处理器中；审批动作直接使用 CQHttp 提供的 `set_friend_add_request` 与 `set_group_add_request`。
 
+v1.3.6 起增加 Snowluma 好友申请兼容：部分 Snowluma 版本不会向 AstrBot 上报 OneBot `post_type=request`，而是把好友申请转换成申请人的普通私聊文本 `请求添加你为好友`。插件会仅在 aiocqhttp 私聊、且文本完全匹配该系统提示时启用兜底，并使用消息发送者 QQ/UIN 调用 Snowluma 已提供的 `set_friend_add_request`。识别后会停止该系统消息继续进入其他插件或 LLM。
+
+此兼容逻辑只位于 Airi Core 插件内部，不需要修改 Snowluma、OneBot 或 AstrBot。
+
 ### 自动同意好友申请
 
 在插件配置中开启 `auto_accept_friend_request` 后：
 
-- 收到 `post_type=request`、`request_type=friend` 的好友申请时，直接调用 `event.bot.set_friend_add_request(..., approve=True)`。
+- 标准 OneBot：收到 `post_type=request`、`request_type=friend` 的好友申请时，直接调用 `event.bot.set_friend_add_request(..., approve=True)`。
+- Snowluma 兼容：收到申请人的私聊系统文本 `请求添加你为好友` 时，以发送者 QQ/UIN 作为 `flag` 调用同一个 `set_friend_add_request`。
 - 该选项默认关闭。
 - 只自动处理好友申请，不自动同意群邀请。
 - 若同时开启人工审批，**好友申请优先自动同意，不再发送审批通知**；群邀请仍然走人工审批。
@@ -37,7 +43,9 @@ v1.3.5 起，请求事件按照 AstrBot aiocqhttp 的请求处理方式独立监
 - `request_approval_enabled=true`
 - `request_approval_qq=你的审批 QQ 号`
 
-开启后，需要人工处理的好友申请以及邀请 Bot 入群请求会私聊发送到指定 QQ。每个请求都有独立编号，例如：
+开启后，需要人工处理的好友申请以及邀请 Bot 入群请求会私聊发送到指定 QQ。Snowluma 好友申请兜底模式下，如果上游没有提供验证信息，通知中会显示 `Snowluma 未提供验证信息`。
+
+每个请求都有独立编号，例如：
 
 ```text
 【好友申请】A001
@@ -150,7 +158,7 @@ data/plugin_data/astrbot_plugin_airi_core/avatar_cache/
 | `welcome_enabled` | `false` | 启用 Bot 入群欢迎 |
 | `welcome_message` | 内置欢迎语 | 欢迎文字 |
 | `welcome_images` | `[]` | 欢迎图片 |
-| `auto_accept_friend_request` | `false` | 自动同意 OneBot / aiocqhttp 好友申请 |
+| `auto_accept_friend_request` | `false` | 自动同意 OneBot / Snowluma 好友申请 |
 | `request_approval_enabled` | `false` | 启用好友申请 / 群邀请人工审批 |
 | `request_approval_qq` | 空 | 接收审批通知并有权执行审批命令的 QQ |
 | `poke_stats_enabled` | `true` | 启用 Poke 统计与排行榜 |
