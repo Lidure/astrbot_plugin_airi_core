@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Any
 
 
+SNOWLUMA_FRIEND_REQUEST_PROMPT = "请求添加你为好友"
+
+
 class PendingRequestStore:
     def __init__(self, path: str | Path):
         self.path = Path(path)
@@ -148,19 +151,15 @@ class RequestApprovalManager:
             f"回复 /同意申请 {rid} 或 /拒绝申请 {rid}"
         )
 
-    async def handle_request(
+    async def _handle_request_data(
         self,
         event: Any,
+        request: dict[str, Any],
         *,
         auto_accept_friend: bool,
         approval_enabled: bool,
         approval_qq: str,
     ) -> str:
-        raw = getattr(getattr(event, "message_obj", None), "raw_message", None)
-        request = self._parse_raw(raw)
-        if not request:
-            return "ignored"
-
         client = getattr(event, "bot", None)
         if client is None:
             return "missing_client"
@@ -196,6 +195,79 @@ class RequestApprovalManager:
             self.store.remove(item["request_id"])
             return "notify_failed"
         return "queued_friend" if item["kind"] == "friend" else "queued_group_invite"
+
+    async def handle_request(
+        self,
+        event: Any,
+        *,
+        auto_accept_friend: bool,
+        approval_enabled: bool,
+        approval_qq: str,
+    ) -> str:
+        raw = getattr(getattr(event, "message_obj", None), "raw_message", None)
+        request = self._parse_raw(raw)
+        if not request:
+            return "ignored"
+
+        return await self._handle_request_data(
+            event,
+            request,
+            auto_accept_friend=auto_accept_friend,
+            approval_enabled=approval_enabled,
+            approval_qq=approval_qq,
+        )
+
+    async def handle_snowluma_friend_prompt(
+        self,
+        event: Any,
+        *,
+        auto_accept_friend: bool,
+        approval_enabled: bool,
+        approval_qq: str,
+    ) -> str:
+        """Handle Snowluma's fallback friend-request private system message.
+
+        Some Snowluma builds expose an inbound friend request as the exact
+        private-message text ``请求添加你为好友`` instead of emitting a OneBot
+        ``post_type=request`` event. Snowluma's ``set_friend_add_request``
+        accepts the applicant UIN in ``flag``, so the sender QQ can be used as
+        a safe compatibility fallback without modifying Snowluma or AstrBot.
+        """
+        if not auto_accept_friend and not approval_enabled:
+            return "ignored"
+
+        is_private_chat = getattr(event, "is_private_chat", None)
+        if not callable(is_private_chat) or not is_private_chat():
+            return "ignored"
+
+        text = str(getattr(event, "message_str", "") or "").strip()
+        if text != SNOWLUMA_FRIEND_REQUEST_PROMPT:
+            return "ignored"
+
+        get_sender_id = getattr(event, "get_sender_id", None)
+        if not callable(get_sender_id):
+            return "ignored"
+        user_id = str(get_sender_id() or "").strip()
+        if not user_id.isdigit():
+            return "ignored"
+
+        get_self_id = getattr(event, "get_self_id", None)
+        if callable(get_self_id) and user_id == str(get_self_id() or "").strip():
+            return "ignored"
+
+        request = {
+            "kind": "friend",
+            "flag": user_id,
+            "user_id": user_id,
+            "comment": "Snowluma 未提供验证信息",
+        }
+        return await self._handle_request_data(
+            event,
+            request,
+            auto_accept_friend=auto_accept_friend,
+            approval_enabled=approval_enabled,
+            approval_qq=approval_qq,
+        )
 
     async def review(
         self,
