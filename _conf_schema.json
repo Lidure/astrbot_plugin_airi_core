@@ -5,6 +5,12 @@
     "hint": "开启后，在 QQ/OneBot 群聊中 @Bot 并附带消息内容时，会绕过 provider wake prefix，复用当前会话触发 LLM。不会额外注入 system prompt。",
     "default": true
   },
+  "mention_tool_enabled": {
+    "type": "bool",
+    "description": "启用 LLM 主动 @ 群友工具",
+    "hint": "开启后，LLM 可在确实需要明确点名某位群友时调用 mention_user 工具；普通回复不会自动 @。工具只记录本轮目标并在发送前插入 At 消息段，不动态修改 system prompt。",
+    "default": true
+  },
   "mute_tool_enabled": {
     "type": "bool",
     "description": "启用 LLM 禁言工具",
