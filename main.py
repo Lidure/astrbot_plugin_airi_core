@@ -592,6 +592,52 @@ class Main(Star):
         yield event.plain_result(text)
 
     @filter.event_message_type(filter.EventMessageType.ALL)
+    async def on_self_mention(self, event: AstrMessageEvent):
+        """@ Bot 时绕过 provider wake prefix，并复用当前会话触发 LLM。"""
+        self_id = str(event.get_self_id() or "")
+        if not self_id:
+            return
+
+        mentioned_self = any(
+            isinstance(component, Comp.At) and str(component.qq) == self_id
+            for component in event.get_messages()
+        )
+        if not mentioned_self:
+            return
+
+        prompt = (event.message_str or "").strip()
+        if not prompt:
+            return
+
+        try:
+            conversation_manager = self.context.conversation_manager
+            conversation_id = await conversation_manager.get_curr_conversation_id(
+                event.unified_msg_origin
+            )
+            if not conversation_id:
+                conversation_id = await conversation_manager.new_conversation(
+                    event.unified_msg_origin,
+                    event.get_platform_id(),
+                )
+
+            conversation = await conversation_manager.get_conversation(
+                event.unified_msg_origin,
+                conversation_id,
+            )
+            if not conversation:
+                logger.error("Airi @唤醒失败：无法获取当前会话。")
+                return
+
+            # 这个 Handler 自己会发起一次显式 LLM 请求，阻止后续默认链路再请求一次。
+            event.should_call_llm(True)
+            yield event.request_llm(
+                prompt=prompt,
+                conversation=conversation,
+            )
+        except Exception as exc:
+            logger.exception(f"Airi @唤醒失败: {exc}")
+
+    @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_notice_event(self, event: AstrMessageEvent):
         raw_message = event.message_obj.raw_message
         if not isinstance(raw_message, dict):
