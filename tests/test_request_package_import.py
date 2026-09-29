@@ -54,6 +54,10 @@ class RequestApprovalPackageImportTests(unittest.TestCase):
                 def platform_adapter_type(*args, **kwargs):
                     return lambda func: func
 
+                @staticmethod
+                def on_decorating_result(*args, **kwargs):
+                    return lambda func: func
+
             class DummyStar:
                 def __init__(self, *args, **kwargs):
                     pass
