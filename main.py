@@ -162,6 +162,74 @@ class MuteTool(FunctionTool):
             return f"禁言失败了: {exc}，请用难过的语气告诉用户禁言操作失败了。"
 
 
+@dataclass
+class MentionTool(FunctionTool):
+    plugin: Any = Field(default=None, repr=False)
+    name: str = "mention_user"
+    description: str = (
+        "在 QQ 群聊的最终回复中 @ 一位群友。"
+        "只有在确实需要明确点名某人、提醒某人或让多人聊天时指向明确时才调用；"
+        "普通聊天不要调用，也不要为了礼貌每次都 @。"
+        "调用后正常生成回复正文即可，不要在正文里重复手写 @、QQ 号或说明你调用了工具。"
+    )
+    parameters: dict = Field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "string",
+                    "description": "需要在最终回复中 @ 的群友 QQ 号。",
+                }
+            },
+            "required": ["user_id"],
+        }
+    )
+
+    async def call(self, context, **kwargs):
+        event = _get_llm_event(context)
+        if not event:
+            return "当前上下文没有可用的消息事件，无法设置 @。"
+
+        plugin = self.plugin
+        if not plugin or not plugin.mention_tool_enabled:
+            return "@ 群友工具当前未启用。"
+
+        platform_name = (
+            event.get_platform_name() if hasattr(event, "get_platform_name") else ""
+        )
+        if platform_name != "aiocqhttp":
+            return "当前平台不支持这个 @ 群友工具。"
+
+        group_id = getattr(event.message_obj, "group_id", None)
+        if not group_id:
+            return "只有 QQ 群聊中才能 @ 群友。"
+
+        user_id = str(kwargs.get("user_id") or "").strip()
+        if not user_id or not user_id.isdigit():
+            return "@ 目标必须是有效的 QQ 号。"
+        if str(event.get_self_id() or "") == user_id:
+            return "不能 @ Bot 自己。"
+
+        call_action = resolve_onebot_call_action(event)
+        if not callable(call_action):
+            return "当前 OneBot API 不可用，无法确认群成员。"
+
+        try:
+            profile = await call_action(
+                "get_group_member_info",
+                group_id=int(group_id),
+                user_id=int(user_id),
+                no_cache=False,
+            )
+            if not profile:
+                return "没有找到这个群成员，无法 @。"
+        except Exception:
+            return "这个 QQ 似乎不在当前群里，无法 @。"
+
+        event.set_extra("airi_mention_target", user_id)
+        return f"已设置最终回复 @ {user_id}，继续正常回复即可。"
+
+
 class Main(Star):
     def __init__(self, context: Context, config=None) -> None:
         super().__init__(context)
@@ -169,6 +237,9 @@ class Main(Star):
 
         self.self_mention_wakeup_enabled = bool(
             self.config.get("self_mention_wakeup_enabled", True)
+        )
+        self.mention_tool_enabled = bool(
+            self.config.get("mention_tool_enabled", True)
         )
         self.mute_tool_enabled = bool(self.config.get("mute_tool_enabled", False))
         self.mute_duration_min = max(
@@ -209,12 +280,15 @@ class Main(Star):
             self._plugin_data_dir / "pending_requests.json"
         )
 
+        if self.mention_tool_enabled:
+            self.context.add_llm_tools(MentionTool(plugin=self))
         if self.mute_tool_enabled:
             self.context.add_llm_tools(MuteTool(plugin=self))
 
     async def initialize(self):
         logger.info(
             f"Airi 核心工具已加载 | @唤醒: {'启用' if self.self_mention_wakeup_enabled else '未启用'}"
+            f" | 主动@工具: {'启用' if self.mention_tool_enabled else '未启用'}"
             f" | 禁言工具: {'启用' if self.mute_tool_enabled else '未启用'}"
             f" | 时长范围: {self.mute_duration_min}~{self.mute_duration_max} 分钟"
             f" | 入群欢迎: {'启用' if self.welcome_enabled else '未启用'}"
@@ -643,6 +717,29 @@ class Main(Star):
             )
         except Exception as exc:
             logger.exception(f"Airi @唤醒失败: {exc}")
+
+    @filter.on_decorating_result()
+    async def decorate_mention_result(self, event: AstrMessageEvent):
+        """若 LLM 本轮调用 mention_user，则在最终消息链前插入真实 At 消息段。"""
+        if not self.mention_tool_enabled:
+            return
+
+        target_qq = str(event.get_extra("airi_mention_target") or "").strip()
+        if not target_qq:
+            return
+
+        result = event.get_result()
+        if not result or not getattr(result, "chain", None):
+            return
+
+        already_mentioned = any(
+            isinstance(component, Comp.At) and str(component.qq) == target_qq
+            for component in result.chain
+        )
+        if not already_mentioned:
+            result.chain.insert(0, Comp.At(qq=target_qq))
+
+        event.set_extra("airi_mention_target", None)
 
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_notice_event(self, event: AstrMessageEvent):
