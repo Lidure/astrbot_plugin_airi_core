@@ -167,6 +167,9 @@ class Main(Star):
         super().__init__(context)
         self.config = config or {}
 
+        self.self_mention_wakeup_enabled = bool(
+            self.config.get("self_mention_wakeup_enabled", True)
+        )
         self.mute_tool_enabled = bool(self.config.get("mute_tool_enabled", False))
         self.mute_duration_min = max(
             1, min(60, int(self.config.get("mute_duration_min", 1)))
@@ -211,7 +214,8 @@ class Main(Star):
 
     async def initialize(self):
         logger.info(
-            f"Airi 核心工具已加载 | 禁言工具: {'启用' if self.mute_tool_enabled else '未启用'}"
+            f"Airi 核心工具已加载 | @唤醒: {'启用' if self.self_mention_wakeup_enabled else '未启用'}"
+            f" | 禁言工具: {'启用' if self.mute_tool_enabled else '未启用'}"
             f" | 时长范围: {self.mute_duration_min}~{self.mute_duration_max} 分钟"
             f" | 入群欢迎: {'启用' if self.welcome_enabled else '未启用'}"
             f" | 自动同意好友: {'启用' if self.auto_accept_friend_request else '未启用'}"
@@ -594,6 +598,9 @@ class Main(Star):
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_self_mention(self, event: AstrMessageEvent):
         """@ Bot 时绕过 provider wake prefix，并复用当前会话触发 LLM。"""
+        if not self.self_mention_wakeup_enabled:
+            return
+
         self_id = str(event.get_self_id() or "")
         if not self_id:
             return
