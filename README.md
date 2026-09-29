@@ -4,6 +4,7 @@ Airi 的 AstrBot 辅助核心插件，提供群管理、好友/群邀请审批�
 
 ## 功能
 
+- 可配置 `@Bot` 唤醒 LLM：即使设置了 provider wake prefix，也可以通过直接 @Bot 进入人格对话，并复用当前会话上下文。
 - LLM 群禁言工具，可配置允许的禁言时长范围。
 - 可选自动同意 OneBot / aiocqhttp 的 QQ 好友申请。
 - 可选好友申请 / 邀请 Bot 入群人工审批：请求会私聊发送给指定 QQ，由指定 QQ 决定同意或拒绝。
@@ -17,6 +18,30 @@ Airi 的 AstrBot 辅助核心插件，提供群管理、好友/群邀请审批�
 - QQ 头像通过公开 qlogo 地址获取并在本地缓存 24 小时；网络失败时优先使用旧缓存，没有缓存则绘制默认占位头像。
 - 排行榜图片不展示完整 QQ 号：当前群优先显示群名片，其次 QQ 昵称；总榜显示 QQ 昵称；获取失败时使用匿名代号。
 - Poke 数据持久化保存，AstrBot 重启或插件重载后不会丢失。
+
+## @Bot 唤醒 LLM
+
+v1.3.7 起增加可配置的 `@Bot` 唤醒功能。
+
+当 `self_mention_wakeup_enabled=true` 时，在 QQ / OneBot 群聊中发送：
+
+```text
+@Bot 你好
+```
+
+插件会检测消息链中是否真的 @ 了 Bot 自己，并显式触发一次 LLM 请求。因此，即使 AstrBot 的 provider wake prefix 配置为 `ch`，`@Bot 你好` 仍可以进入人格对话。
+
+该功能会复用当前 AstrBot conversation，不额外注入 `system_prompt` 或重复拼接人格内容；如果当前还没有 conversation，则按 AstrBot 的会话管理方式创建一个。这样可以尽量保持原有上下文与模型缓存行为，避免因为 @ 唤醒单独构造一套大 Prompt。
+
+为了避免重复请求，@ 唤醒触发显式 LLM 请求后，会阻止同一条消息继续进入 AstrBot 默认 LLM 链路。
+
+规则：
+
+- `@Bot + 文本`：触发 LLM。
+- 仅 @ 其他群友：不触发。
+- 没有 @Bot：不受该功能影响。
+- 仅发送空 @、没有实际文本：不会额外调用 LLM。
+- `self_mention_wakeup_enabled=false`：完全关闭此功能，恢复为 AstrBot 原有触发方式。
 
 ## 好友申请与群邀请
 
@@ -152,6 +177,7 @@ data/plugin_data/astrbot_plugin_airi_core/avatar_cache/
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
+| `self_mention_wakeup_enabled` | `true` | 启用 @Bot 唤醒 LLM；复用当前 conversation，不额外注入 system prompt |
 | `mute_tool_enabled` | `false` | 启用 LLM 禁言工具 |
 | `mute_duration_min` | `1` | 最短禁言分钟数 |
 | `mute_duration_max` | `10` | 最长禁言分钟数 |
