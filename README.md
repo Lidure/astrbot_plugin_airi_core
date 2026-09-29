@@ -5,6 +5,7 @@ Airi 的 AstrBot 辅助核心插件，提供群管理、好友/群邀请审批�
 ## 功能
 
 - 可配置 `@Bot` 唤醒 LLM：即使设置了 provider wake prefix，也可以通过直接 @Bot 进入人格对话，并复用当前会话上下文。
+- 可配置 LLM 主动 @ 群友工具：只有模型判断确实需要明确点名某位群友时才会 @，普通回复不会自动 @。
 - LLM 群禁言工具，可配置允许的禁言时长范围。
 - 可选自动同意 OneBot / aiocqhttp 的 QQ 好友申请。
 - 可选好友申请 / 邀请 Bot 入群人工审批：请求会私聊发送给指定 QQ，由指定 QQ 决定同意或拒绝。
@@ -42,6 +43,22 @@ v1.3.7 起增加可配置的 `@Bot` 唤醒功能。
 - 没有 @Bot：不受该功能影响。
 - 仅发送空 @、没有实际文本：不会额外调用 LLM。
 - `self_mention_wakeup_enabled=false`：完全关闭此功能，恢复为 AstrBot 原有触发方式。
+
+## LLM 主动 @ 群友
+
+v1.3.8 起增加可配置的 `mention_user` LLM 工具。
+
+当 `mention_tool_enabled=true` 时，LLM 可以在确实需要明确点名、提醒某位群友，或多人同时聊天需要明确指向时调用该工具。普通聊天不需要调用，因此不会变成每条回复都自动 @ 发送者。
+
+工具流程：
+
+1. LLM 调用 `mention_user(user_id=...)`。
+2. 插件确认当前为 OneBot 群聊、QQ 号合法、目标不是 Bot 自己，并通过 `get_group_member_info` 确认目标在当前群。
+3. 工具只把目标 QQ 记录到当前事件中。
+4. 最终回复进入 `on_decorating_result` 时，插件在消息链最前面插入真实 `At` 消息段。
+5. 如果最终消息链已经 @ 了同一个人，则不会重复插入。
+
+为了尽量保持 LLM 缓存稳定，这个功能不会在每轮请求里动态修改 `system_prompt`，也不会额外拼接动态上下文。启用时只会增加一个固定的工具 schema；关闭 `mention_tool_enabled` 后该工具不会注册，也不会产生这部分工具 schema 开销。
 
 ## 好友申请与群邀请
 
@@ -178,6 +195,7 @@ data/plugin_data/astrbot_plugin_airi_core/avatar_cache/
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
 | `self_mention_wakeup_enabled` | `true` | 启用 @Bot 唤醒 LLM；复用当前 conversation，不额外注入 system prompt |
+| `mention_tool_enabled` | `true` | 启用 LLM 按需主动 @ 群友工具；普通回复不会自动 @ |
 | `mute_tool_enabled` | `false` | 启用 LLM 禁言工具 |
 | `mute_duration_min` | `1` | 最短禁言分钟数 |
 | `mute_duration_max` | `10` | 最长禁言分钟数 |
