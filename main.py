@@ -19,6 +19,7 @@ if __package__:
     from .avatar_rank_renderer import render_poke_rank_image
     from .friend_requests import resolve_onebot_call_action
     from .request_approval import RequestApprovalManager
+    from .poke_rank_options import normalize_rank_max_limit, parse_rank_command_args
     from .poke_stats import (
         PokeStatsStore,
         extract_onebot_profile_name,
@@ -28,6 +29,7 @@ else:
     from avatar_rank_renderer import render_poke_rank_image
     from friend_requests import resolve_onebot_call_action
     from request_approval import RequestApprovalManager
+    from poke_rank_options import normalize_rank_max_limit, parse_rank_command_args
     from poke_stats import (
         PokeStatsStore,
         extract_onebot_profile_name,
@@ -270,8 +272,8 @@ class Main(Star):
         ).strip()
 
         self.poke_stats_enabled = bool(self.config.get("poke_stats_enabled", True))
-        self.poke_rank_limit = max(
-            3, min(30, int(self.config.get("poke_rank_limit", 10)))
+        self.poke_rank_max_limit = normalize_rank_max_limit(
+            self.config.get("poke_rank_max_limit")
         )
         self._poke_lock = asyncio.Lock()
         self._plugin_data_dir = self._get_plugin_data_dir()
@@ -296,6 +298,7 @@ class Main(Star):
             f" | 人工审批: {'启用' if self.request_approval_enabled else '未启用'}"
             f" | 审批QQ: {self.request_approval_qq or '未配置'}"
             f" | Poke统计: {'启用' if self.poke_stats_enabled else '未启用'}"
+            f" | Poke排行上限: {self.poke_rank_max_limit} 人"
             " | Poke日榜切日: 04:00"
         )
 
@@ -348,14 +351,15 @@ class Main(Star):
         if chain:
             yield event.chain_result(chain)
 
-    @staticmethod
-    def _validate_qq_arg(qq: str, command_name: str) -> tuple[str | None, str | None]:
-        qq = str(qq or "").strip()
-        if not qq:
-            return None, None
-        if not qq.isdigit():
-            return None, f"QQ 号必须是纯数字，例如：/{command_name} 123456789"
-        return qq, None
+    def _parse_rank_args(
+        self, arg1: str, arg2: str, command_name: str
+    ) -> tuple[int | None, str | None, str | None]:
+        return parse_rank_command_args(
+            arg1,
+            arg2,
+            max_limit=self.poke_rank_max_limit,
+            command_name=command_name,
+        )
 
     def _new_rank_image_path(self, scope: str) -> Path:
         safe_scope = "".join(ch for ch in scope if ch.isalnum() or ch in "_-")
@@ -376,10 +380,10 @@ class Main(Star):
         except OSError:
             pass
 
-    def _rank_user_ids(self, summary: dict[str, Any]) -> list[str]:
+    def _rank_user_ids(self, summary: dict[str, Any], rank_limit: int) -> list[str]:
         user_ids = [
             str(user_id)
-            for user_id, _ in summary.get("entries", [])[: self.poke_rank_limit]
+            for user_id, _ in summary.get("entries", [])[:rank_limit]
         ]
         target_user_id = summary.get("target_user_id")
         if target_user_id is not None and str(target_user_id) not in user_ids:
@@ -392,6 +396,7 @@ class Main(Star):
         summary: dict[str, Any],
         *,
         group_id: str | None = None,
+        rank_limit: int,
     ) -> dict[str, str]:
         call_action = resolve_onebot_call_action(event)
         if not callable(call_action):
@@ -428,7 +433,7 @@ class Main(Star):
                     logger.debug(f"获取 QQ 昵称失败 user={user_id}: {exc}")
                     return user_id, ""
 
-        user_ids = self._rank_user_ids(summary)
+        user_ids = self._rank_user_ids(summary, rank_limit)
         if not user_ids:
             return {}
         resolved = await asyncio.gather(
@@ -444,6 +449,7 @@ class Main(Star):
         target_qq: str | None,
         daily: bool,
         global_scope: bool,
+        rank_limit: int,
     ) -> dict[str, Any]:
         async with self._poke_lock:
             if global_scope:
@@ -464,6 +470,7 @@ class Main(Star):
             event,
             summary,
             group_id=None if global_scope else group_id,
+            rank_limit=rank_limit,
         )
         summary["is_daily"] = daily
         summary["is_global_scope"] = global_scope
@@ -481,6 +488,7 @@ class Main(Star):
         subtitle: str,
         summary: dict[str, Any],
         scope: str,
+        rank_limit: int,
     ):
         output_path = self._new_rank_image_path(scope)
         try:
@@ -490,7 +498,7 @@ class Main(Star):
                 title=title,
                 subtitle=subtitle,
                 summary=summary,
-                rank_limit=self.poke_rank_limit,
+                rank_limit=rank_limit,
             )
             self._cleanup_rank_images()
             return event.chain_result([Comp.Image.fromFileSystem(str(output_path))])
