@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from poke_rank_options import (
     DEFAULT_RANK_LIMIT,
@@ -69,7 +70,7 @@ class RankCommandArgTests(unittest.TestCase):
 
 class MainWiringContractTests(unittest.TestCase):
     def test_all_four_commands_accept_two_optional_arguments(self):
-        source = open("main.py", encoding="utf-8").read()
+        source = (Path(__file__).resolve().parents[1] / "main.py").read_text(encoding="utf-8")
         signatures = (
             "async def poke_rank(self, event: AstrMessageEvent, arg1: str = \"\", arg2: str = \"\")",
             "async def poke_total_rank(self, event: AstrMessageEvent, arg1: str = \"\", arg2: str = \"\")",
@@ -80,7 +81,7 @@ class MainWiringContractTests(unittest.TestCase):
             self.assertIn(signature, source)
 
     def test_per_command_limit_flows_to_name_resolution_and_renderer(self):
-        source = open("main.py", encoding="utf-8").read()
+        source = (Path(__file__).resolve().parents[1] / "main.py").read_text(encoding="utf-8")
         self.assertIn("rank_limit=rank_limit", source)
         self.assertIn("def _rank_user_ids(self, summary: dict[str, Any], rank_limit: int)", source)
         self.assertNotIn("[: self.poke_rank_limit]", source)
