@@ -514,7 +514,7 @@ class Main(Star):
             yield result
 
     @filter.command("poke排行")
-    async def poke_rank(self, event: AstrMessageEvent, qq: str = ""):
+    async def poke_rank(self, event: AstrMessageEvent, arg1: str = "", arg2: str = ""):
         """查看当前统计日的当前群 Poke 排行，统计日每天 04:00 切换。"""
         if not self.poke_stats_enabled:
             yield event.plain_result("Poke 统计功能当前未启用。")
@@ -525,7 +525,7 @@ class Main(Star):
             yield event.plain_result("/poke排行 只能在群聊中使用哦～")
             return
 
-        target_qq, error = self._validate_qq_arg(qq, "poke排行")
+        rank_limit, target_qq, error = self._parse_rank_args(arg1, arg2, "poke排行")
         if error:
             yield event.plain_result(error)
             return
@@ -536,6 +536,7 @@ class Main(Star):
             target_qq=target_qq,
             daily=True,
             global_scope=False,
+            rank_limit=rank_limit,
         )
         result = await self._render_rank_result(
             event,
@@ -543,17 +544,18 @@ class Main(Star):
             subtitle=self._group_rank_subtitle(summary, daily=True),
             summary=summary,
             scope=f"daily_group_{group_id}",
+            rank_limit=rank_limit,
         )
         yield result
 
     @filter.command("poke总排行")
-    async def poke_total_rank(self, event: AstrMessageEvent, qq: str = ""):
+    async def poke_total_rank(self, event: AstrMessageEvent, arg1: str = "", arg2: str = ""):
         """查看当前统计日所有群合计 Poke 排行，统计日每天 04:00 切换。"""
         if not self.poke_stats_enabled:
             yield event.plain_result("Poke 统计功能当前未启用。")
             return
 
-        target_qq, error = self._validate_qq_arg(qq, "poke总排行")
+        rank_limit, target_qq, error = self._parse_rank_args(arg1, arg2, "poke总排行")
         if error:
             yield event.plain_result(error)
             return
@@ -564,6 +566,7 @@ class Main(Star):
             target_qq=target_qq,
             daily=True,
             global_scope=True,
+            rank_limit=rank_limit,
         )
         result = await self._render_rank_result(
             event,
@@ -571,11 +574,12 @@ class Main(Star):
             subtitle="所有群合计 · 今日总榜 · 每日 04:00 刷新",
             summary=summary,
             scope="daily_global",
+            rank_limit=rank_limit,
         )
         yield result
 
     @filter.command("poke历史排行")
-    async def poke_history_rank(self, event: AstrMessageEvent, qq: str = ""):
+    async def poke_history_rank(self, event: AstrMessageEvent, arg1: str = "", arg2: str = ""):
         """查看当前群历史累计 Poke 排行。"""
         if not self.poke_stats_enabled:
             yield event.plain_result("Poke 统计功能当前未启用。")
@@ -586,7 +590,7 @@ class Main(Star):
             yield event.plain_result("/poke历史排行 只能在群聊中使用哦～")
             return
 
-        target_qq, error = self._validate_qq_arg(qq, "poke历史排行")
+        rank_limit, target_qq, error = self._parse_rank_args(arg1, arg2, "poke历史排行")
         if error:
             yield event.plain_result(error)
             return
@@ -597,6 +601,7 @@ class Main(Star):
             target_qq=target_qq,
             daily=False,
             global_scope=False,
+            rank_limit=rank_limit,
         )
         result = await self._render_rank_result(
             event,
@@ -604,17 +609,18 @@ class Main(Star):
             subtitle=self._group_rank_subtitle(summary, daily=False),
             summary=summary,
             scope=f"history_group_{group_id}",
+            rank_limit=rank_limit,
         )
         yield result
 
     @filter.command("poke历史总排行")
-    async def poke_history_total_rank(self, event: AstrMessageEvent, qq: str = ""):
+    async def poke_history_total_rank(self, event: AstrMessageEvent, arg1: str = "", arg2: str = ""):
         """查看所有群历史累计 Poke 总排行。"""
         if not self.poke_stats_enabled:
             yield event.plain_result("Poke 统计功能当前未启用。")
             return
 
-        target_qq, error = self._validate_qq_arg(qq, "poke历史总排行")
+        rank_limit, target_qq, error = self._parse_rank_args(arg1, arg2, "poke历史总排行")
         if error:
             yield event.plain_result(error)
             return
@@ -625,6 +631,7 @@ class Main(Star):
             target_qq=target_qq,
             daily=False,
             global_scope=True,
+            rank_limit=rank_limit,
         )
         result = await self._render_rank_result(
             event,
@@ -632,6 +639,7 @@ class Main(Star):
             subtitle="所有群合计 · 历史总榜",
             summary=summary,
             scope="history_global",
+            rank_limit=rank_limit,
         )
         yield result
 
