@@ -12,7 +12,7 @@ import logging
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from mention_media import (
     MAX_MENTION_IMAGES,
@@ -230,7 +230,7 @@ class MentionHandlerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_quoted_id_fallback_carries_image(self):
         e = FakeEvent("这是什么", [Reply(message_str="[图片]"), At("123")])
-        with patch("mention_media.collect_mention_image_urls") as mock:
+        with patch("mention_media.collect_mention_image_urls", new_callable=AsyncMock) as mock:
             mock.return_value = ["/tmp/from-onebot-get-msg.jpg"]
             # The handler uses the function imported in its own namespace:
             self.fn.__globals__["collect_mention_image_urls"] = mock
