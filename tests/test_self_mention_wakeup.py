@@ -18,6 +18,9 @@ class SelfMentionWakeupTests(unittest.TestCase):
         self.assertIn("get_conversation", source)
         self.assertIn("yield event.request_llm(", source)
         self.assertIn("conversation=conversation", source)
+        self.assertIn("image_urls=image_urls", source)
+        self.assertIn("collect_mention_image_urls(", source)
+        self.assertIn("quoted_image_placeholder_present(", source)
         self.assertIn("event.should_call_llm(True)", source)
 
     def test_self_mention_does_not_inject_an_extra_system_prompt(self):

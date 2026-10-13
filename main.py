@@ -19,6 +19,7 @@ if __package__:
     from .avatar_rank_renderer import render_poke_rank_image
     from .friend_requests import resolve_onebot_call_action
     from .request_approval import RequestApprovalManager
+    from .mention_media import collect_mention_image_urls, quoted_image_placeholder_present
     from .poke_rank_options import normalize_rank_max_limit, parse_rank_command_args
     from .poke_stats import (
         PokeStatsStore,
@@ -29,6 +30,7 @@ else:
     from avatar_rank_renderer import render_poke_rank_image
     from friend_requests import resolve_onebot_call_action
     from request_approval import RequestApprovalManager
+    from mention_media import collect_mention_image_urls, quoted_image_placeholder_present
     from poke_rank_options import normalize_rank_max_limit, parse_rank_command_args
     from poke_stats import (
         PokeStatsStore,
@@ -703,10 +705,33 @@ class Main(Star):
             return
 
         prompt = (event.message_str or "").strip()
-        if not prompt:
+        has_media_or_quote = any(
+            isinstance(comp, (Comp.Image, Comp.Reply))
+            for comp in event.get_messages()
+        )
+        if not prompt and not has_media_or_quote:
             return
 
         try:
+            image_urls = await collect_mention_image_urls(
+                event,
+                image_type=Comp.Image,
+                reply_type=Comp.Reply,
+                logger=logger,
+            )
+            if not image_urls and quoted_image_placeholder_present(
+                event, reply_type=Comp.Reply, image_type=Comp.Image
+            ):
+                # A textual [图片] marker is not visual input. Never claim
+                # vision succeeded when OneBot get_msg/media fetching failed.
+                event.should_call_llm(True)
+                yield event.plain_result(
+                    "我暂时没能读取到引用图片，请重新发送原图再 @ 我。"
+                )
+                return
+            if not prompt and not image_urls:
+                return
+
             conversation_manager = self.context.conversation_manager
             conversation_id = await conversation_manager.get_curr_conversation_id(
                 event.unified_msg_origin
@@ -728,7 +753,8 @@ class Main(Star):
             # 这个 Handler 自己会发起一次显式 LLM 请求，阻止后续默认链路再请求一次。
             event.should_call_llm(True)
             yield event.request_llm(
-                prompt=prompt,
+                prompt=prompt or "<attachment>",
+                image_urls=image_urls,
                 conversation=conversation,
             )
         except Exception as exc:
