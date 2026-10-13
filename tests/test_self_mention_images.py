@@ -249,7 +249,7 @@ class MentionHandlerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_missing_quoted_image_does_not_lie_about_seeing_picture(self):
         e = FakeEvent("帮我识别", [At("123"), Reply(message_str="[图片]")])
-        async def fail(*args):
+        async def fail(*args, **kwargs):
             return []
         with patch("mention_media.extract_quoted_message_images", fail, create=True):
             # The real collector defers the fallback import; replace through
