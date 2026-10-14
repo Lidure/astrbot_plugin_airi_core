@@ -111,3 +111,42 @@ def quoted_image_placeholder_present(
         ):
             return True
     return False
+
+
+def quoted_self_message_context(
+    event: Any, *, reply_type: type, image_type: type, self_id: str
+) -> str:
+    """Ground quoted message ownership in QQ/OneBot sender ID, never nickname.
+
+    AstrBot resolves a Reply.sender_id from OneBot get_msg. If lookup failed,
+    its default is 0; treat it as unknown rather than claiming bot ownership.
+    """
+    bot_id = str(self_id or "").strip()
+    if not bot_id or bot_id == "0":
+        return ""
+
+    for component in event.get_messages():
+        if not isinstance(component, reply_type):
+            continue
+        sender_id = str(getattr(component, "sender_id", "") or "").strip()
+        if not sender_id or sender_id == "0" or sender_id != bot_id:
+            continue
+        chain = getattr(component, "chain", None) or []
+        quoted_text = str(getattr(component, "message_str", "") or "")
+        has_image = any(isinstance(item, image_type) for item in chain)
+        if not has_image:
+            has_image = "[图片]" in quoted_text or "[Image]" in quoted_text
+        if not has_image:
+            has_image = any(
+                "[图片]" in str(getattr(item, "text", "") or "")
+                or "[Image]" in str(getattr(item, "text", "") or "")
+                for item in chain
+            )
+        if has_image:
+            return (
+                "QQ平台确认：用户引用的图片来自你这个机器人QQ账号此前发送的消息。"
+                "这可能是命令自动发送的内容；不要声称自己记得具体的命令过程，"
+                "也不要把该图误当作用户新上传的图片。"
+            )
+        return "QQ平台确认：用户引用的是你这个机器人QQ账号此前发送的消息；不要虚构发送缘由。"
+    return ""
