@@ -18,6 +18,7 @@ from mention_media import (
     MAX_MENTION_IMAGES,
     collect_mention_image_urls,
     quoted_image_placeholder_present,
+    quoted_self_message_context,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,10 +43,12 @@ class Image:
 
 
 class Reply:
-    def __init__(self, chain=None, message_str="", id="123"):
+    def __init__(self, chain=None, message_str="", id="123", sender_id=0, sender_nickname=""):
         self.chain = chain or []
         self.message_str = message_str
         self.id = id
+        self.sender_id = sender_id
+        self.sender_nickname = sender_nickname
 
 
 class Plain:
@@ -194,10 +197,15 @@ def load_handler():
     func.decorator_list = []
     module = ast.fix_missing_locations(ast.Module(body=[func], type_ignores=[]))
     cmps = SimpleNamespace(At=At, Image=Image, Reply=Reply)
-    from mention_media import collect_mention_image_urls, quoted_image_placeholder_present
+    from mention_media import (
+        collect_mention_image_urls,
+        quoted_image_placeholder_present,
+        quoted_self_message_context,
+    )
     ns = {"Comp": cmps, "logger": logging.getLogger("airi-wakeup-tests"),
           "collect_mention_image_urls": collect_mention_image_urls,
-          "quoted_image_placeholder_present": quoted_image_placeholder_present}
+          "quoted_image_placeholder_present": quoted_image_placeholder_present,
+          "quoted_self_message_context": quoted_self_message_context}
     exec(compile(module, filename="main.py", mode="exec"), ns)
     return ns["on_self_mention"]
 
@@ -278,6 +286,51 @@ class MentionHandlerTests(unittest.IsolatedAsyncioTestCase):
         e = FakeEvent("", [At("123")])
         self.assertEqual(await self.run_handler(e), [])
         self.assertEqual(e.llm_count, 0)
+
+
+    async def test_quote_of_bot_image_identified_without_losing_visual_input(self):
+        e = FakeEvent("这图不是你发的吗？",
+                      [Reply([Image("/tmp/bot-output.jpg")], sender_id="123"), At("123")])
+        results = await self.run_handler(e)
+        self.assertEqual(len(results), 1)
+        req = e.responses[0]
+        self.assertEqual(req["image_urls"], ["/tmp/bot-output.jpg"])
+        self.assertIn("此前发送", req["prompt"])
+        self.assertIn("这图不是你发的吗？", req["prompt"])
+        self.assertEqual(e.llm_count, 1)
+
+    async def test_other_user_quote_does_not_claim_bot_ownership(self):
+        e = FakeEvent("这张是谁发的？",
+                      [Reply([Image("/tmp/other.jpg")], sender_id="456"), At("123")])
+        await self.run_handler(e)
+        self.assertEqual(e.responses[0]["prompt"], "这张是谁发的？")
+
+    async def test_unknown_quote_owner_never_inferred_from_nickname(self):
+        e = FakeEvent("这张是你的吗？",
+                      [Reply([Image("/tmp/unknown.jpg")], sender_id=0, sender_nickname="Bot"), At("123")])
+        await self.run_handler(e)
+        self.assertEqual(e.responses[0]["prompt"], "这张是你的吗？")
+
+    async def test_bot_quoted_image_placeholder_recovers_provenance(self):
+        e = FakeEvent("你刚才发的图",
+                      [Reply([Plain("[图片]")], sender_id=123, message_str="[图片]"), At("123")])
+        from mention_media import collect_mention_image_urls
+        async def fake_collector(*args, **kwargs):
+            return ["/tmp/recovered.png"]
+        self.fn.__globals__["collect_mention_image_urls"] = fake_collector
+        try:
+            await self.run_handler(e)
+        finally:
+            self.fn.__globals__["collect_mention_image_urls"] = collect_mention_image_urls
+        self.assertEqual(e.responses[0]["image_urls"], ["/tmp/recovered.png"])
+        self.assertIn("此前发送", e.responses[0]["prompt"])
+
+    async def test_bot_quote_of_text_only_is_accurately_attributed(self):
+        e = FakeEvent("你说过什么？",
+                      [Reply([Plain("你好")], sender_id="123"), At("123")])
+        await self.run_handler(e)
+        self.assertIn("此前发送的消息", e.responses[0]["prompt"])
+        self.assertNotIn("引用的图片", e.responses[0]["prompt"])
 
     async def test_plain_text_at_still_uses_same_conversation_and_one_llm(self):
         e = FakeEvent("你好", [At("123"), Plain("你好")])
