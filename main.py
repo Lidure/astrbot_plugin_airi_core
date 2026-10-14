@@ -19,7 +19,11 @@ if __package__:
     from .avatar_rank_renderer import render_poke_rank_image
     from .friend_requests import resolve_onebot_call_action
     from .request_approval import RequestApprovalManager
-    from .mention_media import collect_mention_image_urls, quoted_image_placeholder_present
+    from .mention_media import (
+        collect_mention_image_urls,
+        quoted_image_placeholder_present,
+        quoted_self_message_context,
+    )
     from .poke_rank_options import normalize_rank_max_limit, parse_rank_command_args
     from .poke_stats import (
         PokeStatsStore,
@@ -30,7 +34,11 @@ else:
     from avatar_rank_renderer import render_poke_rank_image
     from friend_requests import resolve_onebot_call_action
     from request_approval import RequestApprovalManager
-    from mention_media import collect_mention_image_urls, quoted_image_placeholder_present
+    from mention_media import (
+        collect_mention_image_urls,
+        quoted_image_placeholder_present,
+        quoted_self_message_context,
+    )
     from poke_rank_options import normalize_rank_max_limit, parse_rank_command_args
     from poke_stats import (
         PokeStatsStore,
@@ -750,10 +758,22 @@ class Main(Star):
                 logger.error("Airi @唤醒失败：无法获取当前会话。")
                 return
 
+            # Only trust OneBot's sender ID when attributing a quote to this bot.
+            # Command-generated images might not appear in the LLM history.
+            quote_context = quoted_self_message_context(
+                event,
+                reply_type=Comp.Reply,
+                image_type=Comp.Image,
+                self_id=self_id,
+            )
+            llm_prompt = prompt or "<attachment>"
+            if quote_context:
+                llm_prompt = f"[引用来源元信息：{quote_context}]\n{llm_prompt}"
+
             # 这个 Handler 自己会发起一次显式 LLM 请求，阻止后续默认链路再请求一次。
             event.should_call_llm(True)
             yield event.request_llm(
-                prompt=prompt or "<attachment>",
+                prompt=llm_prompt,
                 image_urls=image_urls,
                 conversation=conversation,
             )
