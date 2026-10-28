@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from PIL import Image, ImageDraw
 
 if __package__:
+    from .avatar_cache import QqAvatarCache, qq_group_avatar_url
+    from .rank_avatars import paste_circular_avatar
     from .poke_stats import (
         _load_font,
         _rounded_gradient,
@@ -16,6 +19,8 @@ if __package__:
         format_rank_updated_label,
     )
 else:
+    from avatar_cache import QqAvatarCache, qq_group_avatar_url
+    from rank_avatars import paste_circular_avatar
     from poke_stats import (
         _load_font,
         _rounded_gradient,
@@ -89,12 +94,34 @@ def render_group_rank_image(
     subtitle: str,
     summary: dict[str, Any],
     rank_limit: int = 10,
+    avatar_cache: QqAvatarCache | None = None,
 ) -> Path:
-    """Render a group-to-group Poke leaderboard without QQ user avatars."""
+    """Render a group leaderboard with cached circular QQ group portraits."""
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     entries = list(summary.get("entries", []))[:max(1, int(rank_limit))]
     display_names = summary.get("display_names") or {}
+
+    # Only fetch visible groups, in a bounded thread pool. Cache is isolated
+    # from the user QQ avatar cache to avoid collisions between IDs.
+    avatar_paths: dict[str, str | None] = {}
+    if entries:
+        cache = avatar_cache or QqAvatarCache(
+            output.parent / "group_avatar_cache",
+            url_builder=qq_group_avatar_url,
+        )
+        group_ids = [str(group_id) for group_id, _ in entries]
+
+        def fetch_one(group_id: str) -> str | None:
+            try:
+                return cache.get(group_id)
+            except Exception:
+                return None
+
+        with ThreadPoolExecutor(
+            max_workers=min(5, len(group_ids)), thread_name_prefix="airi-group-avatar"
+        ) as executor:
+            avatar_paths = dict(zip(group_ids, executor.map(fetch_one, group_ids)))
 
     width = 960
     left, right = 34, 926
@@ -172,15 +199,21 @@ def render_group_rank_image(
             )
             draw.text((x, rank_y), str(position), font=rank_font, fill="#4B4051")
 
+            paste_circular_avatar(
+                image,
+                avatar_paths.get(group_id),
+                (left + 110, y + 8, left + 154, y + 52),
+            )
+
             name = str(display_names.get(group_id) or "").strip()
             if not name:
                 name = "未知群聊"
             draw.text(
-                (left + 104, y + 4), _truncate_label(name, 14),
+                (left + 170, y + 4), _truncate_label(name, 14),
                 font=name_font, fill="#3B3242"
             )
             draw.text(
-                (left + 106, y + 36), f"群号 {group_id}",
+                (left + 172, y + 36), f"群号 {group_id}",
                 font=small_font, fill="#918697"
             )
 
