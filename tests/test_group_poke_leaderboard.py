@@ -134,6 +134,7 @@ class GroupRankRendererTests(unittest.TestCase):
                     "updated_at": "2026-10-28 12:00:00",
                     "is_daily": True,
                 }, rank_limit=50,
+                avatar_cache=type("FakeCache", (), {"get": lambda self, group_id: None})(),
             )
             with Image.open(path) as image:
                 self.assertEqual(image.format, "PNG")
