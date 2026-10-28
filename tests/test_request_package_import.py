@@ -76,6 +76,11 @@ class RequestApprovalPackageImportTests(unittest.TestCase):
             package.__path__ = [str(ROOT)]
             sys.modules[package_name] = package
             _install_stub(
+                f"{package_name}.group_rank_renderer",
+                render_group_rank_image=lambda *args, **kwargs: None,
+                resolve_group_display_names=lambda *args, **kwargs: {},
+            )
+            _install_stub(
                 f"{package_name}.avatar_rank_renderer",
                 render_poke_rank_image=lambda *args, **kwargs: None,
             )

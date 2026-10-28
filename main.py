@@ -18,13 +18,18 @@ import astrbot.api.message_components as Comp
 if __package__:
     from .avatar_rank_renderer import render_poke_rank_image
     from .friend_requests import resolve_onebot_call_action
+    from .group_rank_renderer import render_group_rank_image, resolve_group_display_names
     from .request_approval import RequestApprovalManager
     from .mention_media import (
         collect_mention_image_urls,
         quoted_image_placeholder_present,
         quoted_self_message_context,
     )
-    from .poke_rank_options import normalize_rank_max_limit, parse_rank_command_args
+    from .poke_rank_options import (
+        normalize_rank_max_limit,
+        parse_rank_command_args,
+        parse_group_rank_limit,
+    )
     from .poke_stats import (
         PokeStatsStore,
         extract_onebot_profile_name,
@@ -33,13 +38,18 @@ if __package__:
 else:
     from avatar_rank_renderer import render_poke_rank_image
     from friend_requests import resolve_onebot_call_action
+    from group_rank_renderer import render_group_rank_image, resolve_group_display_names
     from request_approval import RequestApprovalManager
     from mention_media import (
         collect_mention_image_urls,
         quoted_image_placeholder_present,
         quoted_self_message_context,
     )
-    from poke_rank_options import normalize_rank_max_limit, parse_rank_command_args
+    from poke_rank_options import (
+        normalize_rank_max_limit,
+        parse_rank_command_args,
+        parse_group_rank_limit,
+    )
     from poke_stats import (
         PokeStatsStore,
         extract_onebot_profile_name,
@@ -652,6 +662,72 @@ class Main(Star):
             rank_limit=rank_limit,
         )
         yield result
+
+    async def _render_group_leaderboard_result(
+        self, event: AstrMessageEvent, *, daily: bool, rank_limit: int
+    ):
+        # The existing store already tracks each group's own total.
+        async with self._poke_lock:
+            summary = (
+                self._poke_store.daily_group_leaderboard()
+                if daily
+                else self._poke_store.historical_group_leaderboard()
+            )
+
+        visible_group_ids = [str(gid) for gid, _ in summary["entries"][:rank_limit]]
+        summary["display_names"] = await resolve_group_display_names(
+            resolve_onebot_call_action(event), visible_group_ids
+        )
+        summary["is_daily"] = daily
+        output_path = self._new_rank_image_path(
+            "daily_group_leaderboard" if daily else "history_group_leaderboard"
+        )
+        try:
+            await asyncio.to_thread(
+                render_group_rank_image,
+                output_path,
+                title="Airi 今日群聊 Poke 排行榜" if daily else "Airi 历史群聊 Poke 排行榜",
+                subtitle="各群被戳次数 · 04:00 切日" if daily else "各群被戳次数 · 历史累计",
+                summary=summary,
+                rank_limit=rank_limit,
+            )
+            self._cleanup_rank_images()
+            return event.chain_result([Comp.Image.fromFileSystem(str(output_path))])
+        except Exception as exc:
+            logger.exception(f"生成群聊 Poke 排行榜图片失败: {exc}")
+            return event.plain_result("群聊排行榜生成失败，请检查字体和 Pillow 环境。")
+
+    @filter.command("poke群排行")
+    async def poke_group_rank(self, event: AstrMessageEvent, limit: str = ""):
+        """查看各群在本统计日被戳总次数的排行榜。"""
+        if not self.poke_stats_enabled:
+            yield event.plain_result("Poke 统计功能当前未启用。")
+            return
+        rank_limit, error = parse_group_rank_limit(
+            limit, max_limit=self.poke_rank_max_limit, command_name="poke群排行"
+        )
+        if error:
+            yield event.plain_result(error)
+            return
+        yield await self._render_group_leaderboard_result(
+            event, daily=True, rank_limit=rank_limit
+        )
+
+    @filter.command("poke历史群排行")
+    async def poke_history_group_rank(self, event: AstrMessageEvent, limit: str = ""):
+        """查看各群自启用统计以来被戳总次数的排行榜。"""
+        if not self.poke_stats_enabled:
+            yield event.plain_result("Poke 统计功能当前未启用。")
+            return
+        rank_limit, error = parse_group_rank_limit(
+            limit, max_limit=self.poke_rank_max_limit, command_name="poke历史群排行"
+        )
+        if error:
+            yield event.plain_result(error)
+            return
+        yield await self._render_group_leaderboard_result(
+            event, daily=False, rank_limit=rank_limit
+        )
 
     @filter.platform_adapter_type("aiocqhttp")
     async def on_request(self, event: AstrMessageEvent):

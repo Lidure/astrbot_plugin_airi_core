@@ -74,3 +74,15 @@ def parse_rank_command_args(
         return None, None, f"排行人数必须是正整数，例如：/{command_name} 50"
 
     return min(requested, max_limit), None, None
+
+
+def parse_group_rank_limit(
+    arg: Any, *, max_limit: int, command_name: str
+) -> tuple[int | None, str | None]:
+    """Only an optional visible-group count is accepted in cross-group rankings."""
+    text = str(arg or "").strip()
+    if not text:
+        return DEFAULT_RANK_LIMIT, None
+    if not text.isdigit() or int(text) <= 0:
+        return None, f"群聊排行人数必须是正整数，例如：/{command_name} 50"
+    return min(int(text), normalize_rank_max_limit(max_limit)), None

@@ -245,6 +245,54 @@ class PokeStatsStore:
             "stats_day": stats_day,
         }
 
+    @staticmethod
+    def _group_leaderboard_summary(
+        groups: dict[str, Any],
+        *,
+        updated_at: str | None,
+        stats_day: str | None = None,
+    ) -> dict[str, Any]:
+        """Rank groups by total bot-directed pokes, without changing stored data."""
+        groups = groups if isinstance(groups, dict) else {}
+        entries = [
+            (str(group_id), int(info.get("total", 0)))
+            for group_id, info in groups.items()
+            if isinstance(info, dict) and int(info.get("total", 0)) > 0
+        ]
+        # Numeric group IDs have stable natural-order tie breaking.
+        entries.sort(
+            key=lambda item: (
+                -item[1],
+                (0, int(item[0])) if item[0].isdigit() else (1, item[0]),
+            )
+        )
+        return {
+            "entries": entries,
+            "total_pokes": sum(count for _, count in entries),
+            "total_groups": len(entries),
+            "updated_at": updated_at,
+            "stats_day": stats_day,
+        }
+
+    def historical_group_leaderboard(self) -> dict[str, Any]:
+        """Across-group cumulative ranking, including all legacy historical counts."""
+        return self._group_leaderboard_summary(
+            self.data.get("groups", {}),
+            updated_at=self.data.get("meta", {}).get("updated_at"),
+        )
+
+    def daily_group_leaderboard(
+        self, *, now: datetime | None = None
+    ) -> dict[str, Any]:
+        """Across-group leaderboard using the existing 04:00 logical day."""
+        key = stats_day_key(now)
+        groups = self._daily_groups_for_read(key)
+        return self._group_leaderboard_summary(
+            groups,
+            updated_at=self.data.get("meta", {}).get("updated_at") if groups else None,
+            stats_day=key,
+        )
+
     def group_summary(self, group_id: str, target_user_id: str | None = None) -> dict[str, Any]:
         return self._group_summary(
             self.data.get("groups", {}),
