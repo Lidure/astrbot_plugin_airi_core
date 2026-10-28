@@ -10,12 +10,17 @@ from typing import Callable
 from PIL import Image
 
 QQ_AVATAR_TEMPLATE = "https://q1.qlogo.cn/g?b=qq&nk={user_id}&s=100"
+QQ_GROUP_AVATAR_TEMPLATE = "https://p.qlogo.cn/gh/{group_id}/{group_id}/100"
 DEFAULT_TTL_SECONDS = 24 * 60 * 60
 MAX_AVATAR_BYTES = 2 * 1024 * 1024
 
 
 def qq_avatar_url(user_id: str) -> str:
     return QQ_AVATAR_TEMPLATE.format(user_id=str(user_id))
+
+
+def qq_group_avatar_url(group_id: str) -> str:
+    return QQ_GROUP_AVATAR_TEMPLATE.format(group_id=str(group_id))
 
 
 def _download_bytes(url: str) -> bytes:
@@ -37,11 +42,13 @@ class QqAvatarCache:
         *,
         ttl_seconds: int = DEFAULT_TTL_SECONDS,
         fetcher: Callable[[str], bytes] | None = None,
+        url_builder: Callable[[str], str] | None = None,
     ) -> None:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.ttl_seconds = max(0, int(ttl_seconds))
         self.fetcher = fetcher or _download_bytes
+        self.url_builder = url_builder or qq_avatar_url
 
     @staticmethod
     def _valid_user_id(user_id: str) -> bool:
@@ -78,7 +85,7 @@ class QqAvatarCache:
 
         stale_valid = self._is_valid_image(path)
         try:
-            payload = self.fetcher(qq_avatar_url(user_id))
+            payload = self.fetcher(self.url_builder(user_id))
             if not isinstance(payload, (bytes, bytearray)) or not payload:
                 raise ValueError("empty avatar response")
             with Image.open(io.BytesIO(payload)) as image:
