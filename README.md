@@ -153,9 +153,10 @@ data/plugin_data/astrbot_plugin_airi_core/pending_requests.json
 
 - 每个群单独占一名，按次数从高到低排名；次数相同时按群号稳定排序。
 - 图片展示群名、群号、被戳次数；先从 OneBot 群列表读取群名，无法读取时进一步查询群信息，仍失败则使用“未知群聊 + 群号”。
+- v1.3.13 起，每个显示在群榜中的群会额外展示圆形 QQ 群头像；使用 `https://p.qlogo.cn/gh/{群号}/{群号}/100` 获取，只下载实际展示的群头像，最多 5 个并行请求。
 - 默认显示 10 个群，`/poke群排行 50` 显示前 50 个群（受现有最大人数配置限制）。
 - 只使用已有 `poke_stats.json`，无需迁移数据；历史群榜保留旧版本累计数据，日榜遵循现有 04:00 切日规则。
-- 群榜不会抓个人 QQ 头像，避免将群号当 QQ 用户号；不会额外触发 LLM。
+- 群头像缓存与用户 QQ 头像分开存储，默认有效 24 小时；下载失败优先使用旧缓存，否则显示占位图。不会将群号误当 QQ 用户号，也不会额外触发 LLM。
 
 ### 每日刷新规则
 
@@ -200,6 +201,12 @@ Poke 数据保存在：
 
 ```text
 data/plugin_data/astrbot_plugin_airi_core/poke_stats.json
+```
+
+QQ群头像缓存保存在：
+
+```text
+data/plugin_data/astrbot_plugin_airi_core/group_avatar_cache/
 ```
 
 QQ 头像缓存保存在：
