@@ -38,7 +38,8 @@ class FakeNetwork:
         args = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
         if "feeds3_html_more" in url:
             return self.feed_status, "\n".join(self.feed)
-        return 200, "\n".join(self.friend_posts.get(args["hostuin"][0], []))
+        posts = self.friend_posts.get(args["hostuin"][0], [])
+        return 200, "\n".join(posts) if posts else "friend_data:[]"
 
     def post(self, url, headers, fields):
         self.likes.append(fields.copy())
@@ -103,6 +104,17 @@ class QzoneAutoLikeTests(unittest.TestCase):
         self.assertEqual(len(self.net.likes), 1)
         self.assertEqual(self.net.likes[0]["fid"], "cafe1234")
         self.assertEqual(asyncio.run(liker.scan_once())["liked"], 0)
+
+    def test_first_post_of_previously_empty_friend_is_liked(self):
+        liker = self.service()
+        # friend 222222 has a valid but empty feed during the baseline scan.
+        asyncio.run(liker.scan_once())
+        self.assertIn("friend:222222", liker._state["initialized"])
+        self.net.friend_posts["222222"] = [mood("222222", "d00df00d")]
+        # The shared feed has not returned this friend: profile fallback must detect it.
+        summary = asyncio.run(liker.scan_once())
+        self.assertEqual(summary["liked"], 1)
+        self.assertEqual(self.net.likes[0]["fid"], "d00df00d")
 
     def test_persists_seen_records_across_restart(self):
         liker = self.service()
