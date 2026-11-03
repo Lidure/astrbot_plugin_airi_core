@@ -21,6 +21,6 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install --upgrade pip pillow pydantic
       - name: Verify syntax
-        run: python -m compileall -q main.py mention_media.py tests
+        run: python -m compileall -q main.py mention_media.py qzone_auto_like.py tests
       - name: Run regression tests
         run: python -m unittest discover -s tests -v
