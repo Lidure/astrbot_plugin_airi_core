@@ -19,6 +19,7 @@ Airi 的 AstrBot 辅助核心插件，提供群管理、好友/群邀请审批�
 - QQ 头像通过公开 qlogo 地址获取并在本地缓存 24 小时；网络失败时优先使用旧缓存，没有缓存则绘制默认占位头像。
 - 排行榜图片不展示完整 QQ 号：当前群优先显示群名片，其次 QQ 昵称；总榜显示 QQ 昵称；获取失败时使用匿名代号。
 - Poke 数据持久化保存，AstrBot 重启或插件重载后不会丢失。
+- 可选 QQ 空间好友新说说自动点赞（SnowLuma / OneBot；默认关闭），含只读测试、好友分批扫描、首次索引、去重、限频及风控暂停。
 
 ## @Bot 唤醒 LLM
 ### v1.3.10：@Bot 多模态修复
@@ -234,6 +235,48 @@ data/plugin_data/astrbot_plugin_airi_core/avatar_cache/
 | `request_approval_qq` | 空 | 接收审批通知并有权执行审批命令的 QQ |
 | `poke_stats_enabled` | `true` | 启用 Poke 统计与排行榜 |
 | `poke_rank_max_limit` | `100` | 单次排行最大允许显示人数/群数，范围 10~100；不传数量时默认显示前 10 名 |
+
+
+## QQ 空间好友自动点赞（v1.3.14）
+
+该功能直接集成于 Airi Core 的 `qzone_auto_like.py`，无需额外安装点赞插件或 NapCat。使用 SnowLuma / OneBot 的 `get_friend_list` 与 `get_cookies(domain="user.qzone.qq.com")`。不落盘保存 QQ 空间 Cookie，也不会在日志中输出完整 Cookie。
+
+**默认禁用，且默认只读测试。** `qzone_auto_like_enabled=false`、`qzone_dry_run=true`。对每个动态来源第一次扫描只建立历史索引，不会给历史说说批量补赞；开启真正点赞后，只处理新发现的说说。只读测试时发现的动态也会建立去重记录，切换至真实点赞不会追补这些动态。
+
+### 原理及限制
+
+- 每轮获取一次当前 QQ 的好友动态流，并轮换扫描最多 8 位好友的 QQ 空间，尝试覆盖好友动态流遗漏的作者。仅处理 QQ 好友发表的 mood 说说，忽略自己和非好友动态。
+- 每次扫描间隔默认 300 秒，每轮最多处理 3 条；实际点赞前随机延迟 15–30 秒。
+- 好友空间初次纳入扫描时会先建立索引；在首次索引之前发布的内容可能不会获赞，以免误赞历史说说。
+- 请求点赞之前先保存动态 ID，防止 AstrBot 崩溃或重启引起重复点赞；失败不会自动重试同一条。
+- HTTP 401/403/429 或检测到明显的登录验证响应时暂停一小时，不绕过验证码。
+- QQ 空间使用非官方接口，访问权限、动态流内容和页面结构可能变化，**不能保证 100% 覆盖所有好友的新动态**。
+
+### 配置选项
+
+| 配置项 | 默认值 | 作用 |
+| --- | --- | --- |
+| `qzone_auto_like_enabled` | `false` | 启用定时扫描 |
+| `qzone_dry_run` | `true` | 只读测试，不发送点赞 |
+| `qzone_bot_qq` | 空 | 建议填写 SnowLuma 登录 QQ，避免多账号误绑定 |
+| `qzone_owner_qq` | 空 | 允许管理命令的 QQ；留空则不允许命令控制 |
+| `qzone_poll_interval_sec` | `300` | 扫描间隔，最低 120 秒 |
+| `qzone_friend_batch_size` | `8` | 每轮额外扫描多少好友空间 |
+| `qzone_feed_count` | `30` | 每来源请求的动态数量 |
+| `qzone_max_likes_per_cycle` | `3` | 每轮最大处理新说说数 |
+| `qzone_delay_min_sec` | `15` | 点赞前随机延迟最短秒数 |
+| `qzone_delay_max_sec` | `30` | 点赞前随机延迟最长秒数 |
+
+只有配置的 `qzone_owner_qq` 可以使用以下指令（需要 QQ/OneBot 消息）：
+
+- `/空间点赞 状态`：查看运行状态、已发现好友与索引数。
+- `/空间点赞 开启`：本次运行中开启；重启后仍以插件配置为准。
+- `/空间点赞 关闭`：本次运行中停止。
+- `/空间点赞 扫描`：立即执行一轮，内部加锁防止并行扫描。
+
+初次启用建议先保持 `qzone_dry_run=true`，观察几轮结果后再改为 `false`。该功能的去重状态保存于 `data/plugin_data/astrbot_plugin_airi_core/qzone_auto_like.json`，不包含 Cookie 和好友说说正文。
+
+QQ 空间请求字段参考 MIT 许可证项目 [cube-lover/astrbot_qzone_auto_like](https://github.com/cube-lover/astrbot_qzone_auto_like)，许可证保留于 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 中文字体
 

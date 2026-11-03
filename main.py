@@ -18,6 +18,7 @@ import astrbot.api.message_components as Comp
 if __package__:
     from .avatar_rank_renderer import render_poke_rank_image
     from .friend_requests import resolve_onebot_call_action
+    from .qzone_auto_like import QzoneAutoLike
     from .group_rank_renderer import render_group_rank_image, resolve_group_display_names
     from .request_approval import RequestApprovalManager
     from .mention_media import (
@@ -38,6 +39,7 @@ if __package__:
 else:
     from avatar_rank_renderer import render_poke_rank_image
     from friend_requests import resolve_onebot_call_action
+    from qzone_auto_like import QzoneAutoLike
     from group_rank_renderer import render_group_rank_image, resolve_group_display_names
     from request_approval import RequestApprovalManager
     from mention_media import (
@@ -301,6 +303,20 @@ class Main(Star):
         self._request_approval = RequestApprovalManager(
             self._plugin_data_dir / "pending_requests.json"
         )
+        self.qzone_owner_qq = str(self.config.get("qzone_owner_qq", "") or "").strip()
+        self._qzone_liker = QzoneAutoLike(
+            self._plugin_data_dir / "qzone_auto_like.json",
+            logger=logger,
+            bot_qq=str(self.config.get("qzone_bot_qq", "") or ""),
+            enabled=bool(self.config.get("qzone_auto_like_enabled", False)),
+            dry_run=bool(self.config.get("qzone_dry_run", True)),
+            interval_sec=_coerce_int(self.config.get("qzone_poll_interval_sec"), 300),
+            friend_batch_size=_coerce_int(self.config.get("qzone_friend_batch_size"), 8),
+            feed_count=_coerce_int(self.config.get("qzone_feed_count"), 30),
+            max_likes_per_cycle=_coerce_int(self.config.get("qzone_max_likes_per_cycle"), 3),
+            delay_min_sec=_coerce_int(self.config.get("qzone_delay_min_sec"), 15),
+            delay_max_sec=_coerce_int(self.config.get("qzone_delay_max_sec"), 30),
+        )
 
         if self.mention_tool_enabled:
             self.context.add_llm_tools(MentionTool(plugin=self))
@@ -319,11 +335,13 @@ class Main(Star):
             f" | 审批QQ: {self.request_approval_qq or '未配置'}"
             f" | Poke统计: {'启用' if self.poke_stats_enabled else '未启用'}"
             f" | Poke排行上限: {self.poke_rank_max_limit} 人"
+            f" | 空间自动点赞: {'启用' if self._qzone_liker.enabled else '关闭'}"
+            f" / {'只读测试' if self._qzone_liker.dry_run else '实际点赞'}"
             " | Poke日榜切日: 04:00"
         )
 
     async def terminate(self):
-        pass
+        await self._qzone_liker.close()
 
     def _get_plugin_data_dir(self) -> Path:
         try:
@@ -728,6 +746,57 @@ class Main(Star):
         yield await self._render_group_leaderboard_result(
             event, daily=False, rank_limit=rank_limit
         )
+
+    @filter.platform_adapter_type("aiocqhttp")
+    async def on_qzone_capture(self, event: AstrMessageEvent):
+        """捕获当前 SnowLuma / OneBot 客户端，按需开启后台任务。"""
+        if not self._qzone_liker.enabled:
+            return
+        self._qzone_liker.attach_bot(
+            getattr(event, "bot", None), str(event.get_self_id() or "")
+        )
+
+    @filter.platform_adapter_type("aiocqhttp")
+    @filter.command("空间点赞")
+    async def qzone_like_control(
+        self, event: AstrMessageEvent, action: str = "状态"
+    ):
+        """管理员命令：/空间点赞 状态|开启|关闭|扫描。"""
+        requester = str(event.get_sender_id() or "").strip()
+        if not self.qzone_owner_qq or requester != self.qzone_owner_qq:
+            yield event.plain_result("只有配置的空间点赞管理员可以使用此命令。")
+            return
+
+        action = str(action or "状态").strip()
+        if action == "状态":
+            yield event.plain_result(self._qzone_liker.status())
+            return
+        if action == "关闭":
+            self._qzone_liker.stop()
+            yield event.plain_result("空间自动点赞已关闭（本次运行）。")
+            return
+        if action in {"开启", "扫描"}:
+            qq = str(event.get_self_id() or "")
+            if not self._qzone_liker.attach_bot(getattr(event, "bot", None), qq):
+                yield event.plain_result("当前 OneBot 账号与空间点赞绑定账号不匹配。")
+                return
+            if action == "开启":
+                self._qzone_liker.start()
+                yield event.plain_result(
+                    "空间自动点赞已开启（本次运行）。"
+                    + (" 当前为只读测试模式，不会实际点赞。" if self._qzone_liker.dry_run else "")
+                )
+                return
+            if not self._qzone_liker.enabled:
+                yield event.plain_result("请先开启空间自动点赞，再手动扫描。")
+                return
+            summary = await self._qzone_liker.scan_once()
+            yield event.plain_result(
+                f"扫描完成：新发现 {summary['new']} 条、成功点赞 {summary['liked']} 条、"
+                f"首次索引 {summary['baseline']} 条。"
+            )
+            return
+        yield event.plain_result("用法：/空间点赞 状态|开启|关闭|扫描")
 
     @filter.platform_adapter_type("aiocqhttp")
     async def on_request(self, event: AstrMessageEvent):
