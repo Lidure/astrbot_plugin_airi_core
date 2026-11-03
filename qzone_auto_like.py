@@ -362,8 +362,13 @@ class QzoneAutoLike:
                         (author, fid) for author, fid in parse_mood_links(body)
                         if author in self._friends and (target is None or author == target)
                     ]
-                    # 接口无有效链接可能是权限受限或返回格式更改，不能标记初始化完成。
-                    if not moods:
+                    # 没有说说但确认为合法 feed 结构时，也要建立空白基线：
+                    # 否则“原先没有说说的好友”发布第一条时会被误当历史说说。
+                    # 空响应/未知结构则不能标记成功，以防 QQ 空间鉴权异常。
+                    valid_empty_feed = any(
+                        marker in body for marker in ("friend_data", "host_data", "data_items")
+                    )
+                    if not moods and not valid_empty_feed:
                         continue
                     if name not in initialized:
                         for author, fid in moods:
