@@ -26,7 +26,7 @@ _MOOD_RE = re.compile(
     re.IGNORECASE,
 )
 _COOKIE_RE = re.compile(r"(?:^|;\s*)([a-zA-Z_]+)=([^;]*)")
-_LOGIN_HINTS = ("not log in", "need login", "验证码", "安全验证", "请先登录")
+_LOGIN_HINTS = ("not log in", "need login", "captcha", "\"code\":-4001", "<title>安全验证</title>", "<title>验证码</title>", "请先登录")
 
 
 def parse_mood_links(body: str) -> list[tuple[str, str]]:
