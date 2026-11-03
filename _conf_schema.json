@@ -83,5 +83,65 @@
     "description": "Poke 排行榜单次显示上限",
     "hint": "限制 /poke排行、/poke总排行、/poke历史排行、/poke历史总排行 单次最多显示的人数，范围 10~100，默认 100。命令不填写人数时仍默认显示 10 人；请求人数超过上限时按该上限生成。",
     "default": 100
+  },
+  "qzone_auto_like_enabled": {
+    "type": "bool",
+    "description": "启用 QQ 空间好友新说说自动点赞",
+    "hint": "默认关闭。首次扫描只建立历史索引；以后发现的新说说才可能点赞。需 SnowLuma / OneBot 提供 get_friend_list 与 get_cookies。",
+    "default": false
+  },
+  "qzone_dry_run": {
+    "type": "bool",
+    "description": "QQ 空间只读测试模式（不会实际点赞）",
+    "hint": "默认开启。只读取动态并写去重索引，不发送点赞请求；确认测试正常后再关闭只读模式。",
+    "default": true
+  },
+  "qzone_bot_qq": {
+    "type": "string",
+    "description": "用于 QQ 空间自动点赞的机器人 QQ 号",
+    "hint": "建议填写当前 SnowLuma 登录的 QQ 号，防止多账号误绑定；留空时绑定首个有效 OneBot 消息账号。",
+    "default": ""
+  },
+  "qzone_owner_qq": {
+    "type": "string",
+    "description": "允许执行 /空间点赞 的管理员 QQ",
+    "hint": "只有此 QQ 可以查询状态、开启、关闭或手动扫描。留空时禁用命令控制。",
+    "default": ""
+  },
+  "qzone_poll_interval_sec": {
+    "type": "int",
+    "description": "QQ 空间扫描间隔（秒）",
+    "hint": "推荐 300；程序最小强制 120 秒。",
+    "default": 300
+  },
+  "qzone_friend_batch_size": {
+    "type": "int",
+    "description": "每轮补充检查几个好友空间",
+    "hint": "默认 8；另外检查一页好友动态流。每位好友首次被检查时只建立历史索引。0 表示只依赖好友动态流。",
+    "default": 8
+  },
+  "qzone_feed_count": {
+    "type": "int",
+    "description": "每个 QQ 空间来源最多请求动态数量",
+    "hint": "推荐 30；受接口和访问权限限制，不能保证完整覆盖所有好友。",
+    "default": 30
+  },
+  "qzone_max_likes_per_cycle": {
+    "type": "int",
+    "description": "每轮最多处理多少条新说说",
+    "hint": "推荐 3；超过上限的动态留到后续扫描处理。",
+    "default": 3
+  },
+  "qzone_delay_min_sec": {
+    "type": "int",
+    "description": "每次点赞前随机延迟最小秒数",
+    "hint": "默认 15 秒。",
+    "default": 15
+  },
+  "qzone_delay_max_sec": {
+    "type": "int",
+    "description": "每次点赞前随机延迟最大秒数",
+    "hint": "默认 30 秒。",
+    "default": 30
   }
 }
