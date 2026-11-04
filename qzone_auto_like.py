@@ -235,12 +235,19 @@ class QzoneAutoLike:
                     )),
                     "resolved": dict(data.get("resolved", {})),
                     "pending": self._parse_pending(data.get("pending", [])),
+                    # v1.3.17 marked "resolved" *before* sending a like.
+                    # Only audit entries from before this upgraded worker started.
+                    "legacy_audit_before": float(
+                        data.get("legacy_audit_before") or time.time()
+                    ),
+                    "legacy_audited": dict(data.get("legacy_audited", {})),
                 }
         except (OSError, ValueError, TypeError):
             pass
         return {
             "seen": {}, "initialized": [], "cursor": 0, "account": "",
             "started_at": time.time(), "resolved": {}, "pending": [],
+            "legacy_audit_before": time.time(), "legacy_audited": {},
         }
 
 
@@ -409,6 +416,10 @@ class QzoneAutoLike:
         if len(resolved) > 30000:
             for key, _ in sorted(resolved.items(), key=lambda row: row[1])[:len(resolved) - 25000]:
                 resolved.pop(key, None)
+        audited = self._state["legacy_audited"]
+        if len(audited) > 30000:
+            for key, _ in sorted(audited.items(), key=lambda row: row[1])[:len(audited) - 25000]:
+                audited.pop(key, None)
         temp = self.state_path.with_suffix(".tmp")
         try:
             with temp.open("w", encoding="utf-8") as file:
@@ -431,6 +442,7 @@ class QzoneAutoLike:
             self._state = {
                 "seen": {}, "initialized": [], "cursor": 0, "account": qq,
                 "started_at": time.time(), "resolved": {}, "pending": [],
+                "legacy_audit_before": time.time(), "legacy_audited": {},
             }
             self._save()
         elif not self._state["account"]:
@@ -631,6 +643,63 @@ class QzoneAutoLike:
             raise QzoneAccessError("QQ 空间点赞状态查询被限制，请稍后再试")
         return parse_like_state(status, text)
 
+    async def _audit_legacy_resolution(
+        self, author: str, fid: str, published: int | None,
+        gtk: int, headers: dict[str, str],
+        result: dict[str, int],
+    ) -> bool:
+        """Safely recover recent likes incorrectly finalized before POST.
+
+        v1.3.17 saved seen+resolved synchronously before the 15-30-second
+        send delay. A plugin reload in that interval permanently lost the like.
+        Review only pre-upgrade records with seen ~= resolved and recent,
+        verified publication time, and require two read-only negative checks.
+        Never send the like from here: only enqueue to the existing bounded
+        queue, which independently checks again before POST.
+        """
+        key = author + ":" + fid
+        if self.dry_run or published is None:
+            return False
+        if key in self._state["legacy_audited"]:
+            return False
+        if key not in self._state["resolved"]:
+            return False
+        try:
+            resolved_at = float(self._state["resolved"][key])
+            seen_at = float(self._state["seen"][key])
+        except (ValueError, TypeError, KeyError):
+            return False
+        now = time.time()
+        if not (
+            resolved_at <= self._state["legacy_audit_before"]
+            and abs(resolved_at - seen_at) < 3
+            and self._state["started_at"] <= published <= now + 60
+            and now - published <= 86400
+            and 0 <= resolved_at - published <= 300
+        ):
+            return False
+        # Existing pending queue is considered by _enqueue; no indiscriminate
+        # catch-up for the 1200+ historical indexes.
+        if len(self._state["pending"]) >= 2000:
+            return False
+        prior = await self._read_like_state(author, fid, gtk, headers)
+        if prior is None:
+            return False
+        if prior is False:
+            second = await self._read_like_state(author, fid, gtk, headers)
+            if second is not False:
+                return False
+            self._state["resolved"].pop(key)
+            if not self._enqueue(author, fid, published, legacy=True):
+                self._state["resolved"][key] = resolved_at
+                return False
+            result["legacy_restored"] += 1
+        else:
+            result["legacy_verified"] += 1
+        self._state["legacy_audited"][key] = now
+        self._save()
+        return True
+
     async def scan_once(self) -> dict[str, int]:
         """Discover and durably queue *all* eligible new posts, then like a batch."""
         if self._bot is None or not self._self_qq:
@@ -641,6 +710,7 @@ class QzoneAutoLike:
                 "baseline": 0, "recovered": 0, "already_liked": 0,
                 "failed": 0, "deferred": 0, "skipped": 0, "dry_run": 0,
                 "pending": len(self._state["pending"]),
+                "legacy_restored": 0, "legacy_verified": 0,
             }
             if time.time() < self._suspended_until:
                 return result
@@ -658,6 +728,7 @@ class QzoneAutoLike:
                 sources = self._sources()
                 initialized = set(self._state["initialized"])
                 started = float(self._state["started_at"])
+                legacy_checks = 0
 
                 # Phase 1: scan every source, collect all candidates.
                 # Do not stop discovering when the per-cycle like limit is met.
@@ -689,7 +760,17 @@ class QzoneAutoLike:
 
                     for author, fid in moods:
                         key = author + ":" + fid
+                        published = published_times.get((author, fid))
                         if key in self._state["resolved"]:
+                            if legacy_checks < 2:
+                                # Limit extra Qzone read traffic to 2 old
+                                # records per scan, with at most 2 checks each.
+                                before = result["legacy_restored"] + result["legacy_verified"]
+                                audited = await self._audit_legacy_resolution(
+                                    author, fid, published, gtk, headers, result
+                                )
+                                if audited:
+                                    legacy_checks += 1
                             continue
                         if any(
                             p["author"] == author and p["fid"] == fid
@@ -697,7 +778,6 @@ class QzoneAutoLike:
                         ):
                             continue
                         seen = key in self._state["seen"]
-                        published = published_times.get((author, fid))
                         recent = (
                             published is not None
                             and started <= published <= time.time() + 60
@@ -752,10 +832,12 @@ class QzoneAutoLike:
                 self._log(
                     "info",
                     "本轮结束：新发现=%d 入队=%d 尝试=%d 点赞成功=%d 初次索引=%d"
-                    " 补漏=%d 已点赞=%d 待处理=%d 失败=%d 已知好友=%d"
+                    " 补漏=%d 已点赞=%d 旧中断恢复=%d 旧点赞已核验=%d"
+                    " 待处理=%d 失败=%d 已知好友=%d"
                     % (summary["new"], summary["queued"], summary["attempted"],
                        summary["liked"], summary["baseline"], summary["recovered"],
-                       summary["already_liked"], summary["pending"], summary["failed"],
+                       summary["already_liked"], summary["legacy_restored"],
+                       summary["legacy_verified"], summary["pending"], summary["failed"],
                        len(self._friends)),
                 )
                 await self._sleep(self.interval)
