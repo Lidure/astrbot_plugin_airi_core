@@ -34,6 +34,59 @@ def parse_mood_links(body: str) -> list[tuple[str, str]]:
     return list(dict.fromkeys((qq, fid.lower()) for qq, fid in _MOOD_RE.findall(body)))
 
 
+_FEED_DATA_TAG = re.compile(r'<[^>]*\bname\s*=\s*["\']feed_data["\'][^>]*>', re.I)
+_FEED_ATTR = re.compile(r'\bdata-(uin|tid|abstime)\s*=\s*(["\'])(.*?)\2', re.I | re.S)
+
+
+def parse_mood_publish_times(body: str) -> dict[tuple[str, str], int]:
+    """从 feed_data 精确提取 (作者, 说说 ID) 对应的发布时间。
+
+    只匹配页面真实 mood 链接。无法确认的时间保持未知，不靠位置猜测。
+    """
+    normalized = re.sub(
+        r"\\x([0-9a-fA-F]{2})",
+        lambda m: chr(int(m.group(1), 16)),
+        body or "",
+    ).replace("\\/", "/")
+    visible = set(parse_mood_links(normalized))
+    times: dict[tuple[str, str], int] = {}
+    for tag in _FEED_DATA_TAG.findall(normalized):
+        attrs = {name.lower(): value for name, _, value in _FEED_ATTR.findall(tag)}
+        author, fid = attrs.get("uin", ""), attrs.get("tid", "").lower()
+        if (author, fid) not in visible:
+            continue
+        try:
+            published = int(attrs.get("abstime", ""))
+        except (TypeError, ValueError):
+            continue
+        if 1_400_000_000 <= published <= int(time.time()) + 60:
+            times[(author, fid)] = published
+    return times
+
+
+def parse_like_state(status: int, text: str) -> bool | None:
+    """Return True=liked, False=not liked, None=invalid/unknown."""
+    if status != 200:
+        return None
+    raw = (text or "").strip()
+    if not raw.startswith("{"):
+        start, end = raw.find("("), raw.rfind(")")
+        if start < 0 or end <= start:
+            return None
+        raw = raw[start + 1:end]
+    try:
+        result = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(result, dict) or result.get("code") != 0:
+        return None
+    data = result.get("data")
+    if not isinstance(data, dict):
+        return None
+    state = str(data.get("is_dolike"))
+    return state == "1" if state in ("0", "1") else None
+
+
 def gtk_from_cookie(cookie: str) -> int:
     values = dict(_COOKIE_RE.findall(cookie or ""))
     skey = values.get("p_skey") or values.get("skey") or values.get("media_p_skey")
@@ -175,10 +228,19 @@ class QzoneAutoLike:
                     "initialized": list(data.get("initialized", [])),
                     "cursor": int(data.get("cursor", 0)),
                     "account": str(data.get("account", "")),
+                    "started_at": float(data.get("started_at") or min(
+                        (float(v) for v in data["seen"].values()
+                         if isinstance(v, (int, float))),
+                        default=time.time(),
+                    )),
+                    "resolved": dict(data.get("resolved", {})),
                 }
         except (OSError, ValueError, TypeError):
             pass
-        return {"seen": {}, "initialized": [], "cursor": 0, "account": ""}
+        return {
+            "seen": {}, "initialized": [], "cursor": 0, "account": "",
+            "started_at": time.time(), "resolved": {},
+        }
 
     def _save(self) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -186,6 +248,10 @@ class QzoneAutoLike:
         if len(seen) > 30000:
             for key, _ in sorted(seen.items(), key=lambda row: row[1])[:len(seen) - 25000]:
                 seen.pop(key, None)
+        resolved = self._state["resolved"]
+        if len(resolved) > 30000:
+            for key, _ in sorted(resolved.items(), key=lambda row: row[1])[:len(resolved) - 25000]:
+                resolved.pop(key, None)
         temp = self.state_path.with_suffix(".tmp")
         try:
             with temp.open("w", encoding="utf-8") as file:
@@ -205,7 +271,10 @@ class QzoneAutoLike:
         self._self_qq = qq
         if self._state["account"] and self._state["account"] != qq:
             # 不可将其他登录账号的去重记录与首次扫描状态混用。
-            self._state = {"seen": {}, "initialized": [], "cursor": 0, "account": qq}
+            self._state = {
+                "seen": {}, "initialized": [], "cursor": 0, "account": qq,
+                "started_at": time.time(), "resolved": {},
+            }
             self._save()
         elif not self._state["account"]:
             self._state["account"] = qq
