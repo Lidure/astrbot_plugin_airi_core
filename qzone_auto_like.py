@@ -63,6 +63,30 @@ def like_succeeded(status: int, text: str) -> bool:
     )
 
 
+def like_confirmed(status: int, text: str) -> bool:
+    """Only trust the separate likes-list API's is_dolike flag.
+
+    An internal_dolike_app response with code=0 does NOT by itself prove
+    that the selected mood was liked (confirmed by a SnowLuma live probe).
+    """
+    if status != 200:
+        return False
+    body = (text or "").strip()
+    if not body.startswith("{"):
+        open_paren, close_paren = body.find("("), body.rfind(")")
+        if open_paren < 0 or close_paren <= open_paren:
+            return False
+        body = body[open_paren + 1:close_paren]
+    try:
+        result = json.loads(body)
+    except (ValueError, TypeError):
+        return False
+    if not isinstance(result, dict) or result.get("code") != 0:
+        return False
+    data = result.get("data")
+    return isinstance(data, dict) and str(data.get("is_dolike")) == "1"
+
+
 def _http_get(url: str, headers: dict[str, str]) -> tuple[int, str]:
     request = urllib.request.Request(url, headers=headers, method="GET")
     try:
@@ -303,7 +327,8 @@ class QzoneAutoLike:
     async def _send_like(
         self, author: str, fid: str, gtk: int, headers: dict[str, str]
     ) -> bool:
-        mood = f"https://user.qzone.qq.com/{author}/mood/{fid}"
+        # Use the exact HTTP mood-key scheme used by the QQ Space feed like button.
+        mood = f"http://user.qzone.qq.com/{author}/mood/{fid}"
         endpoint = (
             "https://h5.qzone.qq.com/proxy/domain/w.qzone.qq.com/"
             f"cgi-bin/likes/internal_dolike_app?g_tk={gtk}"
@@ -327,7 +352,36 @@ class QzoneAutoLike:
             hint in response_text.lower() for hint in _LOGIN_HINTS
         ):
             raise QzoneAccessError("点赞接口要求重新登录或触发安全验证")
-        return like_succeeded(response_status, response_text)
+        if not like_succeeded(response_status, response_text):
+            return False
+
+        # The POST may return code=0 while no like was actually applied.
+        # Confirm with a read-only likes query before counting success.
+        await self._sleep(1)
+        query = urllib.parse.urlencode({
+            "uin": self._self_qq,
+            "unikey": mood + ".1",
+            "begin_uin": 0,
+            "query_count": 60,
+            "if_first_page": 1,
+            "g_tk": gtk,
+        })
+        verify_url = (
+            "https://h5.qzone.qq.com/proxy/domain/users.qzone.qq.com/"
+            "cgi-bin/likes/get_like_list_app?" + query
+        )
+        verify_status, verify_text = await asyncio.to_thread(
+            self._get, verify_url, headers
+        )
+        if verify_status in (401, 403, 429):
+            raise QzoneAccessError("QQ 空间点赞核验接口受到访问限制")
+        confirmed = like_confirmed(verify_status, verify_text)
+        if not confirmed:
+            self._log(
+                "warning",
+                "点赞接口返回成功代码，但点赞状态未确认；不会重复点赞同一动态",
+            )
+        return confirmed
 
     async def scan_once(self) -> dict[str, int]:
         """一个周期：好友动态流 + 轮询若干好友空间；每个来源首次扫描只建索引。"""
