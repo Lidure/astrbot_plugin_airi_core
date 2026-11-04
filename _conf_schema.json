@@ -122,12 +122,12 @@
   "qzone_settings": {
     "type": "object",
     "description": "QQ 空间自动点赞",
-    "hint": "一个总开关即可开启实际点赞；首次扫描只索引旧说说，不追赞历史内容。需要 SnowLuma / OneBot 获取好友与 Cookie。",
+    "hint": "自动扫描好友新说说；符合条件的动态先保存待点赞队列，每轮限量处理，重启后继续。",
     "items": {
       "qzone_auto_like_enabled": {
         "type": "bool",
         "description": "自动给 QQ 好友的新说说点赞",
-        "hint": "关闭时不扫描；开启后自动从 AstrBot 当前 QQ 连接识别账号，不需要填写机器人 QQ 号。默认仅索引历史说说，后续对新动态点赞。",
+        "hint": "开启后自动识别当前 OneBot QQ；会保存新动态到待点赞队列并限速点赞，首次扫描不会批量追赞启用前的历史动态。",
         "default": false
       },
       "qzone_poll_interval_sec": {
@@ -138,8 +138,8 @@
       },
       "qzone_max_likes_per_cycle": {
         "type": "int",
-        "description": "每轮最多点赞数量",
-        "hint": "推荐 3；超过上限的动态留到后续扫描处理。",
+        "description": "每轮最多尝试点赞数",
+        "hint": "推荐 3。超过数量的新动态保留在待点赞队列，下一轮继续处理；失败任务延迟重试。",
         "default": 3
       },
       "advanced": {
@@ -150,7 +150,7 @@
           "qzone_dry_run": {
             "type": "bool",
             "description": "仅扫描不点赞（调试）",
-            "hint": "默认关闭。只有排查接口时才开启；开启后不实际点赞，但发现的动态也会记录为已处理。",
+            "hint": "仅在排查时开启：读取、去重并记录已处理，不发真实点赞；切换回正常模式不会补点只读测试期间发现的动态。",
             "default": false
           },
           "qzone_owner_qq": {
@@ -162,7 +162,7 @@
           "qzone_friend_batch_size": {
             "type": "int",
             "description": "每轮补充检查几个好友空间",
-            "hint": "默认 8；另外检查一页好友动态流。每位好友首次被检查时只建立历史索引。0 表示只依赖好友动态流。",
+            "hint": "默认 8；另外检查一页好友动态流。首次扫描根据发布时间判定新动态，无法判断发布时间的内容保守作为历史索引。0 表示只依赖好友动态流。",
             "default": 8
           },
           "qzone_feed_count": {
