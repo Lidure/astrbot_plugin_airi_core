@@ -273,6 +273,7 @@ class QzoneAutoLike:
                 "published_at": published, "queued_at": queued,
                 "attempts": attempts, "next_retry_at": next_retry,
                 "legacy": bool(item.get("legacy", False)),
+                "dry_run_only": bool(item.get("dry_run_only", False)),
             })
         return entries
 
@@ -295,6 +296,7 @@ class QzoneAutoLike:
             "queued_at": time.time(),
             "attempts": 0, "next_retry_at": 0.0,
             "legacy": bool(legacy),
+            "dry_run_only": bool(self.dry_run),
         })
         self._state["seen"][key] = time.time()
         self._save()
@@ -312,6 +314,8 @@ class QzoneAutoLike:
         # Sort by discovery time, rather than feed/source discovery order.
         pending.sort(key=lambda item: (item["queued_at"], item["published_at"]))
         processed = 0
+        read_checks = 0
+        max_reads = max(5, self.max_likes * 3)
         for item in list(pending):
             if processed >= self.max_likes:
                 break
@@ -332,7 +336,7 @@ class QzoneAutoLike:
                 summary["skipped"] += 1
                 continue
 
-            if self.dry_run:
+            if self.dry_run or item.get("dry_run_only", False):
                 # Dry-run discoveries remain historical when switching to live.
                 pending.remove(item)
                 self._state["resolved"][key] = time.time()
@@ -342,6 +346,9 @@ class QzoneAutoLike:
                 processed += 1
                 continue
 
+            if read_checks >= max_reads:
+                break
+            read_checks += 1
             current = await self._read_like_state(author, fid, gtk, headers)
             if current is None:
                 # Unavailable/ambiguous status is not permission to POST.
