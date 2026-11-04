@@ -800,7 +800,8 @@ class Main(Star):
                 f"旧索引补漏 {summary.get('recovered', 0)} 条；"
                 f"已点赞跳过 {summary.get('already_liked', 0)} 条；"
                 f"失败 {summary.get('failed', 0)} 条；"
-                f"首次索引 {summary['baseline']} 条。"
+                f"首次索引 {summary['baseline']} 条；"
+                f"旧版中断恢复 {summary.get('legacy_restored', 0)} 条。"
             )
             return
         yield event.plain_result("用法：/空间点赞 状态|开启|关闭|扫描")
