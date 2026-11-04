@@ -684,11 +684,12 @@ class QzoneAutoLike:
             return False
         prior = await self._read_like_state(author, fid, gtk, headers)
         if prior is None:
-            return False
+            # We did make a read request; count it against this scan's cap.
+            return True
         if prior is False:
             second = await self._read_like_state(author, fid, gtk, headers)
             if second is not False:
-                return False
+                return True
             self._state["resolved"].pop(key)
             if not self._enqueue(author, fid, published, legacy=True):
                 self._state["resolved"][key] = resolved_at
@@ -765,7 +766,6 @@ class QzoneAutoLike:
                             if legacy_checks < 2:
                                 # Limit extra Qzone read traffic to 2 old
                                 # records per scan, with at most 2 checks each.
-                                before = result["legacy_restored"] + result["legacy_verified"]
                                 audited = await self._audit_legacy_resolution(
                                     author, fid, published, gtk, headers, result
                                 )
