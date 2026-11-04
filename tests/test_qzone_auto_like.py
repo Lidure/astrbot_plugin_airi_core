@@ -363,6 +363,7 @@ class QzoneAutoLikeTests(unittest.TestCase):
         self.assertEqual(first["dry_run"], 1)
         # Queued but not yet handled during a dry run must not unexpectedly
         # be liked when the operator switches to live mode.
+        liker.dry_run = False
         second = asyncio.run(liker.scan_once())
         self.assertEqual(second["dry_run"], 1)
         self.assertEqual(second["pending"], 0)
