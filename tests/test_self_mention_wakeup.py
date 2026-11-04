@@ -35,7 +35,7 @@ class SelfMentionWakeupTests(unittest.TestCase):
     def test_self_mention_wakeup_can_be_disabled_and_defaults_to_enabled(self):
         source = (ROOT / "main.py").read_text(encoding="utf-8")
         self.assertIn(
-            'self.config.get("self_mention_wakeup_enabled", True)',
+            'option(self.config, "self_mention_wakeup_enabled", True)',
             source,
         )
 
@@ -45,9 +45,9 @@ class SelfMentionWakeupTests(unittest.TestCase):
         self.assertIn("if not self.self_mention_wakeup_enabled:", handler_source)
 
         schema = json.loads((ROOT / "_conf_schema.json").read_text(encoding="utf-8"))
-        self.assertIn("self_mention_wakeup_enabled", schema)
-        self.assertEqual(schema["self_mention_wakeup_enabled"]["type"], "bool")
-        self.assertIs(schema["self_mention_wakeup_enabled"]["default"], True)
+        field = schema["chat_settings"]["items"]["self_mention_wakeup_enabled"]
+        self.assertEqual(field["type"], "bool")
+        self.assertIs(field["default"], True)
 
 
 if __name__ == "__main__":
