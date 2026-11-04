@@ -1,50 +1,245 @@
 {
+  "chat_settings": {
+    "type": "object",
+    "description": "AI 对话与互动",
+    "hint": "控制 @Bot 唤醒和 LLM 主动点名功能。",
+    "items": {
+      "self_mention_wakeup_enabled": {
+        "type": "bool",
+        "description": "启用 @Bot 唤醒 LLM",
+        "hint": "开启后，在 QQ/OneBot 群聊中 @Bot 并附带消息内容时，会绕过 provider wake prefix，复用当前会话触发 LLM。不会额外注入 system prompt。",
+        "default": true
+      },
+      "mention_tool_enabled": {
+        "type": "bool",
+        "description": "启用 LLM 主动 @ 群友工具",
+        "hint": "开启后，LLM 可在确实需要明确点名某位群友时调用 mention_user 工具；普通回复不会自动 @。工具只记录本轮目标并在发送前插入 At 消息段，不动态修改 system prompt。",
+        "default": true
+      }
+    }
+  },
+  "moderation_settings": {
+    "type": "object",
+    "description": "群管理与禁言",
+    "hint": "控制 LLM 禁言能力和禁言时长。",
+    "items": {
+      "mute_tool_enabled": {
+        "type": "bool",
+        "description": "启用 LLM 禁言工具",
+        "hint": "开启后，LLM 可以在群聊中禁言违规用户。仅在 OneBot (aiocqhttp) 平台生效，需要 bot 是群管理员。",
+        "default": false
+      },
+      "mute_duration_min": {
+        "type": "int",
+        "description": "禁言最短时间（分钟）",
+        "hint": "LLM 禁言工具允许的最短禁言时长，范围 1~60，默认 1。",
+        "default": 1
+      },
+      "mute_duration_max": {
+        "type": "int",
+        "description": "禁言最长时间（分钟）",
+        "hint": "LLM 禁言工具允许的最长禁言时长，范围 1~43200（30天），默认 10。",
+        "default": 10
+      }
+    }
+  },
+  "welcome_settings": {
+    "type": "object",
+    "description": "入群欢迎",
+    "hint": "配置 Bot 加入 QQ 群时的欢迎内容和图片。",
+    "items": {
+      "welcome_enabled": {
+        "type": "bool",
+        "description": "启用入群欢迎消息",
+        "hint": "开启后，当 bot 进入新的群聊时会自动发送欢迎消息。",
+        "default": false
+      },
+      "welcome_message": {
+        "type": "text",
+        "description": "欢迎消息内容",
+        "hint": "Bot 进入新群聊时发送的欢迎消息，支持纯文本。",
+        "default": "你好！我是 Airi，很高兴加入这个群聊！"
+      },
+      "welcome_images": {
+        "type": "file",
+        "description": "欢迎图片列表",
+        "hint": "直接上传 Bot 进入新群聊或使用 help 命令时发送的图片，支持多张图片。",
+        "default": [],
+        "file_types": [
+          "jpg",
+          "jpeg",
+          "png",
+          "gif",
+          "webp"
+        ]
+      }
+    }
+  },
+  "request_settings": {
+    "type": "object",
+    "description": "好友申请与群邀请",
+    "hint": "自动同意好友，或由指定管理员人工审批。",
+    "items": {
+      "auto_accept_friend_request": {
+        "type": "bool",
+        "description": "自动同意好友申请",
+        "hint": "开启后，收到 OneBot (aiocqhttp) 好友申请时直接调用 set_friend_add_request 自动同意。开启后好友申请不会再进入人工审批；群邀请仍可人工审批。",
+        "default": false
+      },
+      "request_approval_enabled": {
+        "type": "bool",
+        "description": "启用好友/群邀请人工审批",
+        "hint": "开启后，需要手动同意的好友申请和邀请 Bot 入群请求会私聊通知指定审批 QQ。若同时开启自动同意好友，好友申请优先自动通过，群邀请仍通知审批。",
+        "default": false
+      },
+      "request_approval_qq": {
+        "type": "string",
+        "description": "请求审批 QQ",
+        "hint": "接收好友申请/群邀请通知并执行审批的 QQ 号。该 QQ 可使用 /同意申请 A001 或 /拒绝申请 A001。",
+        "default": ""
+      }
+    }
+  },
+  "poke_settings": {
+    "type": "object",
+    "description": "戳一戳与排行榜",
+    "hint": "记录针对 Bot 的戳一戳，并生成排行榜。",
+    "items": {
+      "poke_stats_enabled": {
+        "type": "bool",
+        "description": "启用 Poke 统计排行榜",
+        "hint": "记录群友戳一戳 Bot 的次数，并启用 /poke排行 与 /poke总排行 图片排行榜。只统计目标为 Bot 自己的群内 Poke。",
+        "default": true
+      },
+      "poke_rank_max_limit": {
+        "type": "int",
+        "description": "Poke 排行榜单次显示上限",
+        "hint": "限制 /poke排行、/poke总排行、/poke历史排行、/poke历史总排行 单次最多显示的人数，范围 10~100，默认 100。命令不填写人数时仍默认显示 10 人；请求人数超过上限时按该上限生成。",
+        "default": 100
+      }
+    }
+  },
+  "qzone_settings": {
+    "type": "object",
+    "description": "QQ 空间自动点赞",
+    "hint": "一个总开关即可开启实际点赞；首次扫描只索引旧说说，不追赞历史内容。需要 SnowLuma / OneBot 获取好友与 Cookie。",
+    "items": {
+      "qzone_auto_like_enabled": {
+        "type": "bool",
+        "description": "自动给 QQ 好友的新说说点赞",
+        "hint": "关闭时不扫描；开启后自动从 AstrBot 当前 QQ 连接识别账号，不需要填写机器人 QQ 号。默认仅索引历史说说，后续对新动态点赞。",
+        "default": false
+      },
+      "qzone_poll_interval_sec": {
+        "type": "int",
+        "description": "检查新说说的间隔（秒）",
+        "hint": "推荐 300；程序最小强制 120 秒。",
+        "default": 300
+      },
+      "qzone_max_likes_per_cycle": {
+        "type": "int",
+        "description": "每轮最多点赞数量",
+        "hint": "推荐 3；超过上限的动态留到后续扫描处理。",
+        "default": 3
+      },
+      "advanced": {
+        "type": "object",
+        "description": "高级设置（通常无需修改）",
+        "hint": "包含只读调试、管理员权限、好友扫描覆盖及随机延迟等设置。",
+        "items": {
+          "qzone_dry_run": {
+            "type": "bool",
+            "description": "仅扫描不点赞（调试）",
+            "hint": "默认关闭。只有排查接口时才开启；开启后不实际点赞，但发现的动态也会记录为已处理。",
+            "default": false
+          },
+          "qzone_owner_qq": {
+            "type": "string",
+            "description": "空间点赞管理命令授权 QQ",
+            "hint": "只有此 QQ 可以查询状态、开启、关闭或手动扫描。留空时禁用命令控制。",
+            "default": ""
+          },
+          "qzone_friend_batch_size": {
+            "type": "int",
+            "description": "每轮补充检查几个好友空间",
+            "hint": "默认 8；另外检查一页好友动态流。每位好友首次被检查时只建立历史索引。0 表示只依赖好友动态流。",
+            "default": 8
+          },
+          "qzone_feed_count": {
+            "type": "int",
+            "description": "每个 QQ 空间来源最多请求动态数量",
+            "hint": "推荐 30；受接口和访问权限限制，不能保证完整覆盖所有好友。",
+            "default": 30
+          },
+          "qzone_delay_min_sec": {
+            "type": "int",
+            "description": "每次点赞前随机延迟最小秒数",
+            "hint": "默认 15 秒。",
+            "default": 15
+          },
+          "qzone_delay_max_sec": {
+            "type": "int",
+            "description": "每次点赞前随机延迟最大秒数",
+            "hint": "默认 30 秒。",
+            "default": 30
+          }
+        }
+      }
+    }
+  },
   "self_mention_wakeup_enabled": {
     "type": "bool",
     "description": "启用 @Bot 唤醒 LLM",
-    "hint": "开启后，在 QQ/OneBot 群聊中 @Bot 并附带消息内容时，会绕过 provider wake prefix，复用当前会话触发 LLM。不会额外注入 system prompt。",
-    "default": true
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": true,
+    "invisible": true
   },
   "mention_tool_enabled": {
     "type": "bool",
     "description": "启用 LLM 主动 @ 群友工具",
-    "hint": "开启后，LLM 可在确实需要明确点名某位群友时调用 mention_user 工具；普通回复不会自动 @。工具只记录本轮目标并在发送前插入 At 消息段，不动态修改 system prompt。",
-    "default": true
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": true,
+    "invisible": true
   },
   "mute_tool_enabled": {
     "type": "bool",
     "description": "启用 LLM 禁言工具",
-    "hint": "开启后，LLM 可以在群聊中禁言违规用户。仅在 OneBot (aiocqhttp) 平台生效，需要 bot 是群管理员。",
-    "default": false
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": false,
+    "invisible": true
   },
   "mute_duration_min": {
     "type": "int",
     "description": "禁言最短时间（分钟）",
-    "hint": "LLM 禁言工具允许的最短禁言时长，范围 1~60，默认 1。",
-    "default": 1
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": 1,
+    "invisible": true
   },
   "mute_duration_max": {
     "type": "int",
     "description": "禁言最长时间（分钟）",
-    "hint": "LLM 禁言工具允许的最长禁言时长，范围 1~43200（30天），默认 10。",
-    "default": 10
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": 10,
+    "invisible": true
   },
   "welcome_enabled": {
     "type": "bool",
     "description": "启用入群欢迎消息",
-    "hint": "开启后，当 bot 进入新的群聊时会自动发送欢迎消息。",
-    "default": false
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": false,
+    "invisible": true
   },
   "welcome_message": {
     "type": "text",
     "description": "欢迎消息内容",
-    "hint": "Bot 进入新群聊时发送的欢迎消息，支持纯文本。",
-    "default": "你好！我是 Airi，很高兴加入这个群聊！"
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": "你好！我是 Airi，很高兴加入这个群聊！",
+    "invisible": true
   },
   "welcome_images": {
     "type": "file",
     "description": "欢迎图片列表",
-    "hint": "直接上传 Bot 进入新群聊或使用 help 命令时发送的图片，支持多张图片。",
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
     "default": [],
     "file_types": [
       "jpg",
@@ -52,96 +247,112 @@
       "png",
       "gif",
       "webp"
-    ]
+    ],
+    "invisible": true
   },
   "auto_accept_friend_request": {
     "type": "bool",
     "description": "自动同意好友申请",
-    "hint": "开启后，收到 OneBot (aiocqhttp) 好友申请时直接调用 set_friend_add_request 自动同意。开启后好友申请不会再进入人工审批；群邀请仍可人工审批。",
-    "default": false
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": false,
+    "invisible": true
   },
   "request_approval_enabled": {
     "type": "bool",
     "description": "启用好友/群邀请人工审批",
-    "hint": "开启后，需要手动同意的好友申请和邀请 Bot 入群请求会私聊通知指定审批 QQ。若同时开启自动同意好友，好友申请优先自动通过，群邀请仍通知审批。",
-    "default": false
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": false,
+    "invisible": true
   },
   "request_approval_qq": {
     "type": "string",
     "description": "请求审批 QQ",
-    "hint": "接收好友申请/群邀请通知并执行审批的 QQ 号。该 QQ 可使用 /同意申请 A001 或 /拒绝申请 A001。",
-    "default": ""
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": "",
+    "invisible": true
   },
   "poke_stats_enabled": {
     "type": "bool",
     "description": "启用 Poke 统计排行榜",
-    "hint": "记录群友戳一戳 Bot 的次数，并启用 /poke排行 与 /poke总排行 图片排行榜。只统计目标为 Bot 自己的群内 Poke。",
-    "default": true
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": true,
+    "invisible": true
   },
   "poke_rank_max_limit": {
     "type": "int",
     "description": "Poke 排行榜单次显示上限",
-    "hint": "限制 /poke排行、/poke总排行、/poke历史排行、/poke历史总排行 单次最多显示的人数，范围 10~100，默认 100。命令不填写人数时仍默认显示 10 人；请求人数超过上限时按该上限生成。",
-    "default": 100
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": 100,
+    "invisible": true
   },
   "qzone_auto_like_enabled": {
     "type": "bool",
     "description": "启用 QQ 空间好友新说说自动点赞",
-    "hint": "默认关闭。首次扫描只建立历史索引；以后发现的新说说才可能点赞。需 SnowLuma / OneBot 提供 get_friend_list 与 get_cookies。",
-    "default": false
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": false,
+    "invisible": true
   },
   "qzone_dry_run": {
     "type": "bool",
     "description": "QQ 空间只读测试模式（不会实际点赞）",
-    "hint": "默认开启。只读取动态并写去重索引，不发送点赞请求；确认测试正常后再关闭只读模式。",
-    "default": true
-  },
-  "qzone_bot_qq": {
-    "type": "string",
-    "description": "用于 QQ 空间自动点赞的机器人 QQ 号",
-    "hint": "建议填写当前 SnowLuma 登录的 QQ 号，防止多账号误绑定；留空时绑定首个有效 OneBot 消息账号。",
-    "default": ""
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": true,
+    "invisible": true
   },
   "qzone_owner_qq": {
     "type": "string",
     "description": "允许执行 /空间点赞 的管理员 QQ",
-    "hint": "只有此 QQ 可以查询状态、开启、关闭或手动扫描。留空时禁用命令控制。",
-    "default": ""
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": "",
+    "invisible": true
   },
   "qzone_poll_interval_sec": {
     "type": "int",
     "description": "QQ 空间扫描间隔（秒）",
-    "hint": "推荐 300；程序最小强制 120 秒。",
-    "default": 300
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": 300,
+    "invisible": true
   },
   "qzone_friend_batch_size": {
     "type": "int",
     "description": "每轮补充检查几个好友空间",
-    "hint": "默认 8；另外检查一页好友动态流。每位好友首次被检查时只建立历史索引。0 表示只依赖好友动态流。",
-    "default": 8
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": 8,
+    "invisible": true
   },
   "qzone_feed_count": {
     "type": "int",
     "description": "每个 QQ 空间来源最多请求动态数量",
-    "hint": "推荐 30；受接口和访问权限限制，不能保证完整覆盖所有好友。",
-    "default": 30
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": 30,
+    "invisible": true
   },
   "qzone_max_likes_per_cycle": {
     "type": "int",
     "description": "每轮最多处理多少条新说说",
-    "hint": "推荐 3；超过上限的动态留到后续扫描处理。",
-    "default": 3
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": 3,
+    "invisible": true
   },
   "qzone_delay_min_sec": {
     "type": "int",
     "description": "每次点赞前随机延迟最小秒数",
-    "hint": "默认 15 秒。",
-    "default": 15
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": 15,
+    "invisible": true
   },
   "qzone_delay_max_sec": {
     "type": "int",
     "description": "每次点赞前随机延迟最大秒数",
-    "hint": "默认 30 秒。",
-    "default": 30
+    "hint": "历史配置兼容字段，由分组配置自动迁移；请在上面的分组中修改。",
+    "default": 30,
+    "invisible": true
+  },
+  "airi_group_settings_migrated": {
+    "type": "bool",
+    "description": "分组配置迁移完成",
+    "hint": "系统内部使用，请勿修改。",
+    "default": false,
+    "invisible": true
   }
 }
