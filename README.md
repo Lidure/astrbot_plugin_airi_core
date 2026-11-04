@@ -218,30 +218,27 @@ data/plugin_data/astrbot_plugin_airi_core/avatar_cache/
 
 生成的排行榜图片也会临时保存在插件数据目录，插件会自动清理较旧图片，只保留最近一部分。
 
-## 配置
+## 插件配置：按功能分组
 
-| 配置项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `self_mention_wakeup_enabled` | `true` | 启用 @Bot 唤醒 LLM；复用当前 conversation，不额外注入 system prompt |
-| `mention_tool_enabled` | `true` | 启用 LLM 按需主动 @ 群友工具；普通回复不会自动 @ |
-| `mute_tool_enabled` | `false` | 启用 LLM 禁言工具 |
-| `mute_duration_min` | `1` | 最短禁言分钟数 |
-| `mute_duration_max` | `10` | 最长禁言分钟数 |
-| `welcome_enabled` | `false` | 启用 Bot 入群欢迎 |
-| `welcome_message` | 内置欢迎语 | 欢迎文字 |
-| `welcome_images` | `[]` | 欢迎图片 |
-| `auto_accept_friend_request` | `false` | 自动同意 OneBot / Snowluma 好友申请 |
-| `request_approval_enabled` | `false` | 启用好友申请 / 群邀请人工审批 |
-| `request_approval_qq` | 空 | 接收审批通知并有权执行审批命令的 QQ |
-| `poke_stats_enabled` | `true` | 启用 Poke 统计与排行榜 |
-| `poke_rank_max_limit` | `100` | 单次排行最大允许显示人数/群数，范围 10~100；不传数量时默认显示前 10 名 |
+从 v1.3.15 起，插件配置面板按 6 个区块展示，使用 AstrBot 官方 `object` 分组：
 
+| 分组 | 主要配置 |
+| --- | --- |
+| AI 对话与互动 | @Bot 唤醒、LLM 主动 @ 群友 |
+| 群管理与禁言 | LLM 禁言开关、禁言时长范围 |
+| 入群欢迎 | 欢迎开关、文字和图片 |
+| 好友申请与群邀请 | 自动通过好友、人工审批和审批 QQ |
+| 戳一戳与排行榜 | 统计开关、排行榜上限 |
+| QQ 空间自动点赞 | 点赞总开关、扫描间隔、每轮数量；其他选项收在「高级设置」 |
 
+升级时，插件会将以前的扁平配置字段迁移到新分组，保留已经设置的自定义值；旧字段仅为升级兼容保留，不再出现在表单中。迁移成功后会记录标记，防止后续重启覆盖新分组的修改。不要直接删除旧配置文件。
+
+QQ 空间点赞的机器人 QQ 号**不再需要填写**：插件从当前 QQ/OneBot 事件获得 `self_id` 并绑定该会话，后续收到其他账号的事件不会误切换账号。如果同一 AstrBot 同时连接多个机器人账号，首次触发绑定的账号会优先使用；目前还没有多账号选择器。
 ## QQ 空间好友自动点赞（v1.3.14）
 
 该功能直接集成于 Airi Core 的 `qzone_auto_like.py`，无需额外安装点赞插件或 NapCat。使用 SnowLuma / OneBot 的 `get_friend_list` 与 `get_cookies(domain="user.qzone.qq.com")`。不落盘保存 QQ 空间 Cookie，也不会在日志中输出完整 Cookie。
 
-**默认禁用，且默认只读测试。** `qzone_auto_like_enabled=false`、`qzone_dry_run=true`。对每个动态来源第一次扫描只建立历史索引，不会给历史说说批量补赞；开启真正点赞后，只处理新发现的说说。只读测试时发现的动态也会建立去重记录，切换至真实点赞不会追补这些动态。
+**默认关闭自动点赞，开启即真实点赞。** `qzone_auto_like_enabled=false`、`qzone_dry_run=false`。对每个动态来源第一次扫描只建立历史索引，不会给历史说说批量补赞；开启真正点赞后，只处理新发现的说说。只读测试时发现的动态也会建立去重记录，切换至真实点赞不会追补这些动态。
 
 ### 原理及限制
 
@@ -256,9 +253,8 @@ data/plugin_data/astrbot_plugin_airi_core/avatar_cache/
 
 | 配置项 | 默认值 | 作用 |
 | --- | --- | --- |
-| `qzone_auto_like_enabled` | `false` | 启用定时扫描 |
-| `qzone_dry_run` | `true` | 只读测试，不发送点赞 |
-| `qzone_bot_qq` | 空 | 建议填写 SnowLuma 登录 QQ，避免多账号误绑定 |
+| `qzone_auto_like_enabled` | `false` | 总开关：开启后自动点赞 |
+| `qzone_dry_run` | `false` | 高级选项：只读测试，不发送点赞 |
 | `qzone_owner_qq` | 空 | 允许管理命令的 QQ；留空则不允许命令控制 |
 | `qzone_poll_interval_sec` | `300` | 扫描间隔，最低 120 秒 |
 | `qzone_friend_batch_size` | `8` | 每轮额外扫描多少好友空间 |
@@ -274,7 +270,7 @@ data/plugin_data/astrbot_plugin_airi_core/avatar_cache/
 - `/空间点赞 关闭`：本次运行中停止。
 - `/空间点赞 扫描`：立即执行一轮，内部加锁防止并行扫描。
 
-初次启用建议先保持 `qzone_dry_run=true`，观察几轮结果后再改为 `false`。该功能的去重状态保存于 `data/plugin_data/astrbot_plugin_airi_core/qzone_auto_like.json`，不包含 Cookie 和好友说说正文。
+首次调试可临时打开高级设置中的 `qzone_dry_run=true`，扫描只建立索引而不点赞；正常使用无需勾选。该功能的去重状态保存于 `data/plugin_data/astrbot_plugin_airi_core/qzone_auto_like.json`，不包含 Cookie 和好友说说正文。
 
 QQ 空间请求字段参考 MIT 许可证项目 [cube-lover/astrbot_qzone_auto_like](https://github.com/cube-lover/astrbot_qzone_auto_like)，许可证保留于 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
