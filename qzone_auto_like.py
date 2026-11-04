@@ -645,6 +645,7 @@ class QzoneAutoLike:
             if time.time() < self._suspended_until:
                 return result
             try:
+                self._last_error = ""
                 await self._refresh_friends()
                 cookie_data = await self._call_bot("get_cookies", domain="user.qzone.qq.com")
                 cookie = (
@@ -730,7 +731,6 @@ class QzoneAutoLike:
                 # Phase 2: process one bounded queue batch. Remaining tasks
                 # survive restart and do not need to reappear in the feed.
                 await self._drain_pending(gtk, headers, result)
-                self._last_error = ""
             except QzoneAccessError as exc:
                 self._suspended_until = time.time() + 3600
                 self._last_error = str(exc)
