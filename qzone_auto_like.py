@@ -361,7 +361,7 @@ class QzoneAutoLike:
                 self._state["resolved"][key] = time.time()
                 self._save()
                 summary["already_liked"] += 1
-                processed += 1
+                # Read-only already-liked cleanup does not consume POST quota.
                 continue
 
             # Mark the attempt before sending so a crash cannot issue an
