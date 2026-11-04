@@ -18,6 +18,7 @@ import astrbot.api.message_components as Comp
 if __package__:
     from .avatar_rank_renderer import render_poke_rank_image
     from .friend_requests import resolve_onebot_call_action
+    from .config_sections import migrate as migrate_settings, option
     from .qzone_auto_like import QzoneAutoLike
     from .group_rank_renderer import render_group_rank_image, resolve_group_display_names
     from .request_approval import RequestApprovalManager
@@ -39,6 +40,7 @@ if __package__:
 else:
     from avatar_rank_renderer import render_poke_rank_image
     from friend_requests import resolve_onebot_call_action
+    from config_sections import migrate as migrate_settings, option
     from qzone_auto_like import QzoneAutoLike
     from group_rank_renderer import render_group_rank_image, resolve_group_display_names
     from request_approval import RequestApprovalManager
@@ -257,20 +259,21 @@ class MentionTool(FunctionTool):
 class Main(Star):
     def __init__(self, context: Context, config=None) -> None:
         super().__init__(context)
-        self.config = config or {}
+        self.config = config if config is not None else {}
+        migrate_settings(self.config)
 
         self.self_mention_wakeup_enabled = bool(
-            self.config.get("self_mention_wakeup_enabled", True)
+            option(self.config, "self_mention_wakeup_enabled", True)
         )
         self.mention_tool_enabled = bool(
-            self.config.get("mention_tool_enabled", True)
+            option(self.config, "mention_tool_enabled", True)
         )
-        self.mute_tool_enabled = bool(self.config.get("mute_tool_enabled", False))
+        self.mute_tool_enabled = bool(option(self.config, "mute_tool_enabled", False))
         self.mute_duration_min = max(
-            1, min(60, int(self.config.get("mute_duration_min", 1)))
+            1, min(60, int(option(self.config, "mute_duration_min", 1)))
         )
         self.mute_duration_max = max(
-            1, min(43200, int(self.config.get("mute_duration_max", 10)))
+            1, min(43200, int(option(self.config, "mute_duration_max", 10)))
         )
         if self.mute_duration_min > self.mute_duration_max:
             self.mute_duration_min, self.mute_duration_max = (
@@ -278,24 +281,24 @@ class Main(Star):
                 self.mute_duration_min,
             )
 
-        self.welcome_enabled = bool(self.config.get("welcome_enabled", False))
-        self.welcome_message = self.config.get(
+        self.welcome_enabled = bool(option(self.config, "welcome_enabled", False))
+        self.welcome_message = option(self.config, 
             "welcome_message", "你好！我是 Airi，很高兴加入这个群聊！"
         )
-        self.welcome_images = self.config.get("welcome_images", [])
+        self.welcome_images = option(self.config, "welcome_images", [])
         self.auto_accept_friend_request = bool(
-            self.config.get("auto_accept_friend_request", False)
+            option(self.config, "auto_accept_friend_request", False)
         )
         self.request_approval_enabled = bool(
-            self.config.get("request_approval_enabled", False)
+            option(self.config, "request_approval_enabled", False)
         )
         self.request_approval_qq = str(
-            self.config.get("request_approval_qq", "") or ""
+            option(self.config, "request_approval_qq", "") or ""
         ).strip()
 
-        self.poke_stats_enabled = bool(self.config.get("poke_stats_enabled", True))
+        self.poke_stats_enabled = bool(option(self.config, "poke_stats_enabled", True))
         self.poke_rank_max_limit = normalize_rank_max_limit(
-            self.config.get("poke_rank_max_limit")
+            option(self.config, "poke_rank_max_limit")
         )
         self._poke_lock = asyncio.Lock()
         self._plugin_data_dir = self._get_plugin_data_dir()
@@ -303,19 +306,18 @@ class Main(Star):
         self._request_approval = RequestApprovalManager(
             self._plugin_data_dir / "pending_requests.json"
         )
-        self.qzone_owner_qq = str(self.config.get("qzone_owner_qq", "") or "").strip()
+        self.qzone_owner_qq = str(option(self.config, "qzone_owner_qq", "") or "").strip()
         self._qzone_liker = QzoneAutoLike(
             self._plugin_data_dir / "qzone_auto_like.json",
             logger=logger,
-            bot_qq=str(self.config.get("qzone_bot_qq", "") or ""),
-            enabled=bool(self.config.get("qzone_auto_like_enabled", False)),
-            dry_run=bool(self.config.get("qzone_dry_run", True)),
-            interval_sec=_coerce_int(self.config.get("qzone_poll_interval_sec"), 300),
-            friend_batch_size=_coerce_int(self.config.get("qzone_friend_batch_size"), 8),
-            feed_count=_coerce_int(self.config.get("qzone_feed_count"), 30),
-            max_likes_per_cycle=_coerce_int(self.config.get("qzone_max_likes_per_cycle"), 3),
-            delay_min_sec=_coerce_int(self.config.get("qzone_delay_min_sec"), 15),
-            delay_max_sec=_coerce_int(self.config.get("qzone_delay_max_sec"), 30),
+            enabled=bool(option(self.config, "qzone_auto_like_enabled", False)),
+            dry_run=bool(option(self.config, "qzone_dry_run", False)),
+            interval_sec=_coerce_int(option(self.config, "qzone_poll_interval_sec"), 300),
+            friend_batch_size=_coerce_int(option(self.config, "qzone_friend_batch_size"), 8),
+            feed_count=_coerce_int(option(self.config, "qzone_feed_count"), 30),
+            max_likes_per_cycle=_coerce_int(option(self.config, "qzone_max_likes_per_cycle"), 3),
+            delay_min_sec=_coerce_int(option(self.config, "qzone_delay_min_sec"), 15),
+            delay_max_sec=_coerce_int(option(self.config, "qzone_delay_max_sec"), 30),
         )
 
         if self.mention_tool_enabled:

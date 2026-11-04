@@ -9,16 +9,17 @@ ROOT = Path(__file__).resolve().parents[1]
 class LlmMentionToolTests(unittest.TestCase):
     def test_mention_tool_is_configurable_and_registered_only_when_enabled(self):
         source = (ROOT / "main.py").read_text(encoding="utf-8")
-        self.assertIn('self.config.get("mention_tool_enabled", True)', source)
+        self.assertIn('option(self.config, "mention_tool_enabled", True)', source)
         self.assertIn("class MentionTool(FunctionTool)", source)
         self.assertIn('name: str = "mention_user"', source)
         self.assertIn("if self.mention_tool_enabled:", source)
         self.assertIn("self.context.add_llm_tools(MentionTool(plugin=self))", source)
 
         schema = json.loads((ROOT / "_conf_schema.json").read_text(encoding="utf-8"))
-        self.assertIn("mention_tool_enabled", schema)
-        self.assertEqual(schema["mention_tool_enabled"]["type"], "bool")
-        self.assertIs(schema["mention_tool_enabled"]["default"], True)
+        self.assertIn("mention_tool_enabled", schema["chat_settings"]["items"])
+        field = schema["chat_settings"]["items"]["mention_tool_enabled"]
+        self.assertEqual(field["type"], "bool")
+        self.assertIs(field["default"], True)
 
     def test_mention_tool_records_target_and_validates_onebot_group_member(self):
         source = (ROOT / "main.py").read_text(encoding="utf-8")
