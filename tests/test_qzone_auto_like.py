@@ -6,7 +6,7 @@ import urllib.parse
 from pathlib import Path
 
 from qzone_auto_like import (
-    QzoneAutoLike, gtk_from_cookie, like_succeeded, parse_mood_links,
+    QzoneAutoLike, gtk_from_cookie, like_succeeded, like_confirmed, parse_mood_links,
 )
 
 
@@ -31,11 +31,21 @@ class FakeNetwork:
         self.likes = []
         self.feed_status = 200
         self.like_status = (200, '{"code":0,"message":"ok"}')
+        self.liked_keys = set()
+        self.verify_override = None
+        self.verify_status = 200
 
     def get(self, url, headers):
         self.calls.append(url)
         assert headers["Cookie"].startswith("uin=")
         args = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        if "get_like_list_app" in url:
+            key = args["unikey"][0].removesuffix(".1")
+            liked = int(key in self.liked_keys)
+            if self.verify_override is not None:
+                liked = self.verify_override
+            response = {"code": 0, "data": {"is_dolike": liked}}
+            return self.verify_status, "_Callback(" + json.dumps(response) + ");"
         if "feeds3_html_more" in url:
             return self.feed_status, "\n".join(self.feed)
         posts = self.friend_posts.get(args["hostuin"][0], [])
@@ -43,6 +53,9 @@ class FakeNetwork:
 
     def post(self, url, headers, fields):
         self.likes.append(fields.copy())
+        if (fields["unikey"].startswith("http://user.qzone.qq.com/")
+                and like_succeeded(*self.like_status)):
+            self.liked_keys.add(fields["unikey"])
         return self.like_status
 
 
@@ -59,6 +72,7 @@ class QzoneAutoLikeTests(unittest.TestCase):
             "state_path": self.path, "http_get": self.net.get,
             "http_post": self.net.post, "dry_run": False,
             "friend_batch_size": 2, "delay_min_sec": 0, "delay_max_sec": 0,
+            "sleep": lambda _: asyncio.sleep(0),
         }
         params.update(overrides)
         liker = QzoneAutoLike(**params)
@@ -90,6 +104,46 @@ class QzoneAutoLikeTests(unittest.TestCase):
         self.assertFalse(like_succeeded(200, "<html>captcha</html>"))
         self.assertFalse(like_succeeded(500, '{"code":0}'))
         self.assertFalse(like_succeeded(200, '{"code":0,"message":"记录成功"}'))
+
+    def test_like_verification_requires_true_is_dolike(self):
+        self.assertTrue(
+            like_confirmed(
+                200, '_Callback({"code":0,"data":{"is_dolike":1}});'
+            )
+        )
+        self.assertFalse(
+            like_confirmed(
+                200, '_Callback({"code":0,"data":{"is_dolike":0}});'
+            )
+        )
+        self.assertFalse(like_confirmed(200, '{"code":0}'))
+        self.assertFalse(like_confirmed(403, '{"code":0,"data":{"is_dolike":1}}'))
+
+    def test_code_zero_without_actual_like_does_not_count_success(self):
+        liker = self.service()
+        asyncio.run(liker.scan_once())
+        self.net.verify_override = 0
+        self.net.feed.append(mood("111111", "abeef001"))
+        result = asyncio.run(liker.scan_once())
+        self.assertEqual(result["new"], 1)
+        self.assertEqual(result["liked"], 0)
+        self.assertEqual(len(self.net.likes), 1)
+        self.assertEqual(asyncio.run(liker.scan_once())["liked"], 0)
+
+    def test_real_like_payload_matches_http_mood_key_and_is_verified(self):
+        liker = self.service()
+        asyncio.run(liker.scan_once())
+        self.net.feed.append(mood("111111", "abcd9876"))
+        result = asyncio.run(liker.scan_once())
+        self.assertEqual(result["liked"], 1)
+        payload = self.net.likes[0]
+        self.assertEqual(
+            payload["unikey"], "http://user.qzone.qq.com/111111/mood/abcd9876"
+        )
+        self.assertEqual(payload["curkey"], payload["unikey"])
+        self.assertTrue(
+            any("get_like_list_app" in url for url in self.net.calls)
+        )
 
     def test_first_scan_only_indexes_then_likes_new_friend_post_once(self):
         liker = self.service()
