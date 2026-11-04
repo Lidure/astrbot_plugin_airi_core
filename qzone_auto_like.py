@@ -34,6 +34,59 @@ def parse_mood_links(body: str) -> list[tuple[str, str]]:
     return list(dict.fromkeys((qq, fid.lower()) for qq, fid in _MOOD_RE.findall(body)))
 
 
+_FEED_DATA_TAG = re.compile(r'<[^>]*\bname\s*=\s*["\']feed_data["\'][^>]*>', re.I)
+_FEED_ATTR = re.compile(r'\bdata-(uin|tid|abstime)\s*=\s*(["\'])(.*?)\2', re.I | re.S)
+
+
+def parse_mood_publish_times(body: str) -> dict[tuple[str, str], int]:
+    """从 feed_data 精确提取 (作者, 说说 ID) 对应的发布时间。
+
+    只匹配页面真实 mood 链接。无法确认的时间保持未知，不靠位置猜测。
+    """
+    normalized = re.sub(
+        r"\\x([0-9a-fA-F]{2})",
+        lambda m: chr(int(m.group(1), 16)),
+        body or "",
+    ).replace("\\/", "/")
+    visible = set(parse_mood_links(normalized))
+    times: dict[tuple[str, str], int] = {}
+    for tag in _FEED_DATA_TAG.findall(normalized):
+        attrs = {name.lower(): value for name, _, value in _FEED_ATTR.findall(tag)}
+        author, fid = attrs.get("uin", ""), attrs.get("tid", "").lower()
+        if (author, fid) not in visible:
+            continue
+        try:
+            published = int(attrs.get("abstime", ""))
+        except (TypeError, ValueError):
+            continue
+        if 1_400_000_000 <= published <= int(time.time()) + 60:
+            times[(author, fid)] = published
+    return times
+
+
+def parse_like_state(status: int, text: str) -> bool | None:
+    """Return True=liked, False=not liked, None=invalid/unknown."""
+    if status != 200:
+        return None
+    raw = (text or "").strip()
+    if not raw.startswith("{"):
+        start, end = raw.find("("), raw.rfind(")")
+        if start < 0 or end <= start:
+            return None
+        raw = raw[start + 1:end]
+    try:
+        result = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(result, dict) or result.get("code") != 0:
+        return None
+    data = result.get("data")
+    if not isinstance(data, dict):
+        return None
+    state = str(data.get("is_dolike"))
+    return state == "1" if state in ("0", "1") else None
+
+
 def gtk_from_cookie(cookie: str) -> int:
     values = dict(_COOKIE_RE.findall(cookie or ""))
     skey = values.get("p_skey") or values.get("skey") or values.get("media_p_skey")
@@ -175,10 +228,19 @@ class QzoneAutoLike:
                     "initialized": list(data.get("initialized", [])),
                     "cursor": int(data.get("cursor", 0)),
                     "account": str(data.get("account", "")),
+                    "started_at": float(data.get("started_at") or min(
+                        (float(v) for v in data["seen"].values()
+                         if isinstance(v, (int, float))),
+                        default=time.time(),
+                    )),
+                    "resolved": dict(data.get("resolved", {})),
                 }
         except (OSError, ValueError, TypeError):
             pass
-        return {"seen": {}, "initialized": [], "cursor": 0, "account": ""}
+        return {
+            "seen": {}, "initialized": [], "cursor": 0, "account": "",
+            "started_at": time.time(), "resolved": {},
+        }
 
     def _save(self) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -186,6 +248,10 @@ class QzoneAutoLike:
         if len(seen) > 30000:
             for key, _ in sorted(seen.items(), key=lambda row: row[1])[:len(seen) - 25000]:
                 seen.pop(key, None)
+        resolved = self._state["resolved"]
+        if len(resolved) > 30000:
+            for key, _ in sorted(resolved.items(), key=lambda row: row[1])[:len(resolved) - 25000]:
+                resolved.pop(key, None)
         temp = self.state_path.with_suffix(".tmp")
         try:
             with temp.open("w", encoding="utf-8") as file:
@@ -205,7 +271,10 @@ class QzoneAutoLike:
         self._self_qq = qq
         if self._state["account"] and self._state["account"] != qq:
             # 不可将其他登录账号的去重记录与首次扫描状态混用。
-            self._state = {"seen": {}, "initialized": [], "cursor": 0, "account": qq}
+            self._state = {
+                "seen": {}, "initialized": [], "cursor": 0, "account": qq,
+                "started_at": time.time(), "resolved": {},
+            }
             self._save()
         elif not self._state["account"]:
             self._state["account"] = qq
@@ -383,14 +452,34 @@ class QzoneAutoLike:
             )
         return confirmed
 
+    async def _read_like_state(
+        self, author: str, fid: str, gtk: int, headers: dict[str, str]
+    ) -> bool | None:
+        # Legacy records may already have been liked by a previous plugin version.
+        # Always verify these before sending another POST.
+        mood = f"http://user.qzone.qq.com/{author}/mood/{fid}"
+        query = urllib.parse.urlencode({
+            "uin": self._self_qq, "unikey": mood + ".1",
+            "begin_uin": 0, "query_count": 60,
+            "if_first_page": 1, "g_tk": gtk,
+        })
+        url = (
+            "https://h5.qzone.qq.com/proxy/domain/users.qzone.qq.com/"
+            "cgi-bin/likes/get_like_list_app?" + query
+        )
+        status, text = await asyncio.to_thread(self._get, url, headers)
+        if status in (401, 403, 429):
+            raise QzoneAccessError("QQ 空间点赞状态查询被限制，请稍后再试")
+        return parse_like_state(status, text)
+
     async def scan_once(self) -> dict[str, int]:
-        """一个周期：好友动态流 + 轮询若干好友空间；每个来源首次扫描只建索引。"""
+        """扫描好友：按发布时间识别真正新说说，首次访问也不漏赞。"""
         if self._bot is None or not self._self_qq:
             raise RuntimeError("尚未从 OneBot 消息捕获机器人连接")
         async with self._scan_lock:
+            result = {"new": 0, "liked": 0, "baseline": 0, "recovered": 0, "already_liked": 0}
             if time.time() < self._suspended_until:
-                return {"new": 0, "liked": 0, "baseline": 0}
-            result = {"new": 0, "liked": 0, "baseline": 0}
+                return result
             try:
                 await self._refresh_friends()
                 cookie_data = await self._call_bot("get_cookies", domain="user.qzone.qq.com")
@@ -403,6 +492,8 @@ class QzoneAutoLike:
                 headers = self._headers(cookie)
                 sources = self._sources()
                 initialized = set(self._state["initialized"])
+                read_checks = 0
+                started = float(self._state["started_at"])
                 for name, target in sources:
                     url = self._feed_url(target, gtk)
                     status, body = await asyncio.to_thread(self._get, url, headers)
@@ -412,54 +503,97 @@ class QzoneAutoLike:
                         raise QzoneAccessError("空间动态接口需要重新登录或安全验证")
                     if status != 200:
                         raise RuntimeError(f"QQ 空间动态读取 HTTP {status}")
+
+                    posted_times = parse_mood_publish_times(body)
                     moods = [
                         (author, fid) for author, fid in parse_mood_links(body)
                         if author in self._friends and (target is None or author == target)
                     ]
-                    # 没有说说但确认为合法 feed 结构时，也要建立空白基线：
-                    # 否则“原先没有说说的好友”发布第一条时会被误当历史说说。
-                    # 空响应/未知结构则不能标记成功，以防 QQ 空间鉴权异常。
+                    # For confirmed empty feeds, mark an empty baseline, so
+                    # the friend's first-ever post is not mistaken for history.
                     valid_empty_feed = any(
                         marker in body for marker in ("friend_data", "host_data", "data_items")
                     )
                     if not moods and not valid_empty_feed:
                         continue
-                    if name not in initialized:
-                        for author, fid in moods:
-                            key = author + ":" + fid
-                            if key not in self._state["seen"]:
-                                self._state["seen"][key] = time.time()
-                                result["baseline"] += 1
+
+                    first_source_scan = name not in initialized
+                    if first_source_scan:
                         initialized.add(name)
                         self._state["initialized"] = sorted(initialized)
                         self._save()
-                        continue
+
                     for author, fid in moods:
                         key = author + ":" + fid
-                        if key in self._state["seen"]:
-                            continue
+                        already_seen = key in self._state["seen"]
+                        published = posted_times.get((author, fid))
+                        # Do not retroactively like pre-activation history,
+                        # or posts older than one day after a long outage.
+                        recent_since_enabled = (
+                            published is not None
+                            and started <= published <= time.time() + 60
+                            and time.time() - published <= 86400
+                        )
+
+                        if already_seen:
+                            if key in self._state["resolved"] or not recent_since_enabled:
+                                continue
+                            # v1.3.16 and earlier recorded baseline posts as
+                            # "seen" with no attempt status. Revisit only posts
+                            # known to be published after this bot was enabled.
+                            if read_checks >= 5 or result["new"] >= self.max_likes:
+                                continue
+                            read_checks += 1
+                            liked_state = await self._read_like_state(
+                                author, fid, gtk, headers
+                            )
+                            if liked_state is None:
+                                continue
+                            if liked_state:
+                                self._state["resolved"][key] = time.time()
+                                result["already_liked"] += 1
+                                self._save()
+                                continue
+                        else:
+                            if (first_source_scan and not recent_since_enabled) or (
+                                published is not None and not recent_since_enabled
+                            ):
+                                # Unknown time on first scan is conservatively
+                                # treated as old; known pre-start post is old.
+                                self._state["seen"][key] = time.time()
+                                result["baseline"] += 1
+                                continue
+                            if result["new"] >= self.max_likes:
+                                # Do not mark an unprocessed new post as seen.
+                                # It can be picked up by a later scan.
+                                continue
+
                         if result["new"] >= self.max_likes:
-                            break
-                        # 先持久化尝试记录，崩溃/重启时不会把同一条动态再次点赞。
+                            continue
+                        # Mark attempt before POST so a crash cannot cause
+                        # a double-like. Keep legacy "seen" in place.
                         self._state["seen"][key] = time.time()
+                        self._state["resolved"][key] = time.time()
                         self._save()
                         result["new"] += 1
+                        if already_seen:
+                            result["recovered"] += 1
                         if self.dry_run:
                             self._dry_count += 1
                             continue
-                        await self._sleep(random.uniform(self.delay_min, self.delay_max))
+
+                        await self._sleep(random.uniform(
+                            self.delay_min, self.delay_max
+                        ))
                         success = await self._send_like(author, fid, gtk, headers)
                         if success:
                             self._liked += 1
                             result["liked"] += 1
                         else:
                             self._failed += 1
-                    if result["new"] >= self.max_likes:
-                        break
                 self._save()
                 self._last_error = ""
             except QzoneAccessError as exc:
-                # 不进行验证码绕过；暂停至少一小时。
                 self._suspended_until = time.time() + 3600
                 self._last_error = str(exc)
                 self._log("warning", self._last_error)
@@ -477,8 +611,9 @@ class QzoneAutoLike:
                 summary = await self.scan_once()
                 self._log(
                     "info",
-                    "本轮结束：新增=%d 点赞=%d 初次索引=%d 已知好友=%d"
-                    % (summary["new"], summary["liked"], summary["baseline"], len(self._friends)),
+                    "本轮结束：新增=%d 点赞=%d 初次索引=%d 补漏=%d 已点赞=%d 已知好友=%d"
+                    % (summary["new"], summary["liked"], summary["baseline"],
+                       summary["recovered"], summary["already_liked"], len(self._friends)),
                 )
                 await self._sleep(self.interval)
         except asyncio.CancelledError:

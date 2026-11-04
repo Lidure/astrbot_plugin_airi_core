@@ -795,7 +795,9 @@ class Main(Star):
             summary = await self._qzone_liker.scan_once()
             yield event.plain_result(
                 f"扫描完成：新发现 {summary['new']} 条、成功点赞 {summary['liked']} 条、"
-                f"首次索引 {summary['baseline']} 条。"
+                f"首次索引 {summary['baseline']} 条、"
+                f"旧索引补漏 {summary.get('recovered', 0)} 条、"
+                f"已点赞跳过 {summary.get('already_liked', 0)} 条。"
             )
             return
         yield event.plain_result("用法：/空间点赞 状态|开启|关闭|扫描")

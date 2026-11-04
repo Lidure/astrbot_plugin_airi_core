@@ -1,12 +1,14 @@
 import asyncio
 import json
 import tempfile
+import time
 import unittest
 import urllib.parse
 from pathlib import Path
 
 from qzone_auto_like import (
     QzoneAutoLike, gtk_from_cookie, like_succeeded, like_confirmed, parse_mood_links,
+    parse_mood_publish_times, parse_like_state,
 )
 
 
@@ -90,6 +92,101 @@ class QzoneAutoLikeTests(unittest.TestCase):
             parse_mood_links(text),
             [("111111", "deadbeef"), ("222222", "a1b2c3")],
         )
+
+    @staticmethod
+    def feed_mood(qq, fid, created):
+        # Real feeds3_html_more escapes tag quotes as \x22 and sometimes < as \x3C.
+        item = (
+            f'<i name="feed_data" data-uin="{qq}" '
+            f'data-tid="{fid}" data-abstime="{created}"></i>'
+            + mood(qq, fid)
+        )
+        return item.replace('"', r'\x22').replace('<', r'\x3C').replace('>', r'\x3E')
+
+    def test_feed_data_parses_exact_author_id_and_publish_time(self):
+        now = int(time.time())
+        source = self.feed_mood("111111", "aabbcc22", now - 30)
+        matches = parse_mood_publish_times(source)
+        self.assertEqual(matches[("111111", "aabbcc22")], now - 30)
+        # A matching timestamp in a different author's feed_data cannot
+        # accidentally be applied to another author's linked post.
+        fake_meta = self.feed_mood("222222", "aabbcc22", now - 60)
+        self.assertNotIn(
+            ("111111", "aabbcc22"),
+            parse_mood_publish_times(fake_meta.replace("222222/mood/", "111111/mood/"))
+        )
+
+    def test_like_state_distinguishes_false_from_unavailable(self):
+        self.assertIs(
+            parse_like_state(200, '_Callback({"code":0,"data":{"is_dolike":0}});'),
+            False,
+        )
+        self.assertIs(
+            parse_like_state(200, '_Callback({"code":0,"data":{"is_dolike":1}});'),
+            True,
+        )
+        self.assertIsNone(parse_like_state(200, '{"code":0,"data":{}}'))
+        self.assertIsNone(parse_like_state(403, '{"code":0,"data":{"is_dolike":0}}'))
+
+    def test_first_friend_scan_likes_post_newer_than_activation(self):
+        liker = self.service(friend_batch_size=1)
+        liker._state["started_at"] = time.time() - 3600
+        # The main feed knows no posts from friend 2, who is not scanned on cycle 1.
+        asyncio.run(liker.scan_once())
+        self.net.friend_posts["222222"] = [
+            self.feed_mood("222222", "ccaa7788", int(time.time()) - 100)
+        ]
+        second = asyncio.run(liker.scan_once())
+        self.assertEqual(second["liked"], 1)
+        self.assertEqual(second["baseline"], 0)
+        self.assertEqual(len(self.net.likes), 1)
+
+    def test_first_friend_scan_indexes_pre_activation_history(self):
+        liker = self.service(friend_batch_size=1)
+        liker._state["started_at"] = time.time() - 3600
+        asyncio.run(liker.scan_once())
+        self.net.friend_posts["222222"] = [
+            self.feed_mood("222222", "ccaa7799", int(time.time()) - 7200)
+        ]
+        second = asyncio.run(liker.scan_once())
+        self.assertEqual(second["liked"], 0)
+        self.assertEqual(second["baseline"], 1)
+
+    def test_recovers_previously_baselined_post_from_old_state(self):
+        liker = self.service()
+        liker._state["started_at"] = time.time() - 3600
+        key = "111111:cafeed11"
+        liker._state["seen"][key] = time.time() - 90
+        liker._save()
+        self.net.feed = [self.feed_mood("111111", "cafeed11", int(time.time()) - 120)]
+        summary = asyncio.run(liker.scan_once())
+        self.assertEqual(summary["recovered"], 1)
+        self.assertEqual(summary["liked"], 1)
+        self.assertEqual(len(self.net.likes), 1)
+        # Even a restart must not repeat an attempt.
+        restarted = self.service()
+        self.assertEqual(asyncio.run(restarted.scan_once())["liked"], 0)
+        self.assertEqual(len(self.net.likes), 1)
+
+    def test_previous_like_already_present_only_marks_resolved(self):
+        liker = self.service()
+        liker._state["started_at"] = time.time() - 3600
+        liker._state["seen"]["111111:bbbbaaaa"] = time.time() - 90
+        self.net.feed = [self.feed_mood("111111", "bbbbaaaa", int(time.time()) - 100)]
+        self.net.liked_keys.add("http://user.qzone.qq.com/111111/mood/bbbbaaaa")
+        summary = asyncio.run(liker.scan_once())
+        self.assertEqual(summary["already_liked"], 1)
+        self.assertEqual(summary["liked"], 0)
+        self.assertEqual(len(self.net.likes), 0)
+
+    def test_upgrade_derives_original_activation_time_from_seen(self):
+        older = time.time() - 7200
+        self.path.write_text(json.dumps({
+            "seen": {"111111:abcd0011": older},
+            "initialized": ["feed"], "cursor": 0, "account": "3855327198"
+        }), encoding="utf-8")
+        liker = self.service()
+        self.assertAlmostEqual(liker._state["started_at"], older, delta=1)
 
     def test_cookie_gtk_requires_skey_and_prefers_p_skey(self):
         self.assertEqual(
