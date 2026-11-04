@@ -297,6 +297,22 @@ class QzoneAutoLikeTests(unittest.TestCase):
         self.assertEqual(asyncio.run(liker.scan_once())["queued"], 0)
         self.assertEqual(len(self.net.likes), 1)
 
+    def test_already_liked_entries_do_not_consume_real_post_quota(self):
+        liker = self.service(max_likes_per_cycle=2)
+        asyncio.run(liker.scan_once())
+        posts = [mood("111111", f"dad0{i:04x}") for i in range(4)]
+        self.net.feed.extend(posts)
+        # Pre-liked items use a read-only query and must not steal the quota
+        # from new items that actually require a like POST.
+        for post in posts[:2]:
+            self.net.liked_keys.add(post.replace("https://", "http://"))
+        summary = asyncio.run(liker.scan_once())
+        self.assertEqual(summary["already_liked"], 2)
+        self.assertEqual(summary["attempted"], 2)
+        self.assertEqual(summary["liked"], 2)
+        self.assertEqual(summary["pending"], 0)
+        self.assertEqual(len(self.net.likes), 2)
+
     def test_post_failure_keeps_queue_and_safely_retries_later(self):
         liker = self.service()
         asyncio.run(liker.scan_once())
