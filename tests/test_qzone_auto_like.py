@@ -242,6 +242,143 @@ class QzoneAutoLikeTests(unittest.TestCase):
             any("get_like_list_app" in url for url in self.net.calls)
         )
 
+    def test_burst_of_eight_posts_is_drained_across_three_scans(self):
+        liker = self.service(max_likes_per_cycle=3)
+        asyncio.run(liker.scan_once())
+        posts = [mood("111111", f"cafe{i:04x}") for i in range(8)]
+        self.net.feed.extend(posts)
+        self.net.friend_posts["111111"].extend(posts)
+        first = asyncio.run(liker.scan_once())
+        self.assertEqual(first["new"], 8)
+        self.assertEqual(first["queued"], 8)
+        self.assertEqual(first["attempted"], 3)
+        self.assertEqual(first["liked"], 3)
+        self.assertEqual(first["pending"], 5)
+        # Posts can disappear from both feeds; queue must not lose them.
+        self.net.feed = [mood("111111", "deadbeef")]
+        self.net.friend_posts["111111"] = [mood("111111", "deadbeef")]
+        second = asyncio.run(liker.scan_once())
+        self.assertEqual(second["new"], 0)
+        self.assertEqual(second["liked"], 3)
+        self.assertEqual(second["pending"], 2)
+        third = asyncio.run(liker.scan_once())
+        self.assertEqual(third["liked"], 2)
+        self.assertEqual(third["pending"], 0)
+        self.assertEqual(len(self.net.likes), 8)
+        self.assertEqual(len({x["fid"] for x in self.net.likes}), 8)
+
+    def test_pending_queue_survives_restart_even_if_post_disappears(self):
+        liker = self.service(max_likes_per_cycle=1)
+        asyncio.run(liker.scan_once())
+        posts = [mood("111111", f"cafeaa{i:02x}") for i in range(4)]
+        self.net.feed.extend(posts)
+        first = asyncio.run(liker.scan_once())
+        self.assertEqual(first["liked"], 1)
+        self.assertEqual(first["pending"], 3)
+        on_disk = json.loads(self.path.read_text(encoding="utf-8"))
+        self.assertEqual(len(on_disk["pending"]), 3)
+        self.assertNotIn("test-secret", self.path.read_text(encoding="utf-8"))
+        self.net.feed = [mood("111111", "deadbeef")]
+        restarted = self.service(max_likes_per_cycle=1)
+        summaries = [asyncio.run(restarted.scan_once()) for _ in range(3)]
+        self.assertEqual([s["liked"] for s in summaries], [1, 1, 1])
+        self.assertEqual(summaries[-1]["pending"], 0)
+        self.assertEqual(len(self.net.likes), 4)
+
+    def test_multiple_sources_do_not_enqueue_same_post_twice(self):
+        liker = self.service(max_likes_per_cycle=1)
+        asyncio.run(liker.scan_once())
+        post = mood("111111", "c0ffee11")
+        self.net.feed.extend([post, post])
+        self.net.friend_posts["111111"].append(post)
+        first = asyncio.run(liker.scan_once())
+        self.assertEqual(first["queued"], 1)
+        self.assertEqual(first["liked"], 1)
+        self.assertEqual(asyncio.run(liker.scan_once())["queued"], 0)
+        self.assertEqual(len(self.net.likes), 1)
+
+    def test_post_failure_keeps_queue_and_safely_retries_later(self):
+        liker = self.service()
+        asyncio.run(liker.scan_once())
+        self.net.like_status = (200, '{"code":1}')
+        self.net.feed.append(mood("111111", "failed11"))
+        # Mood IDs must be hexadecimal.
+        self.net.feed[-1] = mood("111111", "fadee111")
+        first = asyncio.run(liker.scan_once())
+        self.assertEqual(first["liked"], 0)
+        self.assertEqual(first["failed"], 1)
+        self.assertEqual(first["pending"], 1)
+        self.assertEqual(first["attempted"], 1)
+        second = asyncio.run(liker.scan_once())
+        self.assertEqual(second["attempted"], 0)
+        self.assertEqual(len(self.net.likes), 1)
+        self.net.like_status = (200, '{"code":0}')
+        liker._state["pending"][0]["next_retry_at"] = 0
+        third = asyncio.run(liker.scan_once())
+        self.assertEqual(third["liked"], 1)
+        self.assertEqual(third["pending"], 0)
+        self.assertEqual(len(self.net.likes), 2)
+
+    def test_ambiguous_like_status_never_posts(self):
+        liker = self.service()
+        asyncio.run(liker.scan_once())
+        self.net.verify_status = 500
+        self.net.feed.append(mood("111111", "abcdef01"))
+        first = asyncio.run(liker.scan_once())
+        self.assertEqual(first["deferred"], 1)
+        self.assertEqual(first["attempted"], 0)
+        self.assertEqual(first["pending"], 1)
+        self.assertEqual(len(self.net.likes), 0)
+        self.net.verify_status = 200
+        liker._state["pending"][0]["next_retry_at"] = 0
+        second = asyncio.run(liker.scan_once())
+        self.assertEqual(second["liked"], 1)
+        self.assertEqual(second["pending"], 0)
+
+    def test_three_failed_posts_stop_retry_but_remain_visible_in_queue(self):
+        liker = self.service()
+        asyncio.run(liker.scan_once())
+        self.net.like_status = (200, '{"code":1}')
+        self.net.feed.append(mood("111111", "badc0ffe"))
+        for attempt in range(3):
+            if attempt:
+                liker._state["pending"][0]["next_retry_at"] = 0
+            summary = asyncio.run(liker.scan_once())
+            self.assertEqual(summary["failed"], 1)
+        self.assertEqual(len(self.net.likes), 3)
+        again = asyncio.run(liker.scan_once())
+        self.assertEqual(again["pending"], 1)
+        self.assertEqual(again["attempted"], 0)
+        self.assertEqual(len(self.net.likes), 3)
+        self.assertIn("重试已暂停：1", liker.status())
+
+    def test_dry_run_queue_items_are_not_liked_after_switching_live(self):
+        liker = self.service(dry_run=True, max_likes_per_cycle=1)
+        asyncio.run(liker.scan_once())
+        self.net.feed.extend([
+            mood("111111", "babe0001"), mood("111111", "babe0002")
+        ])
+        first = asyncio.run(liker.scan_once())
+        self.assertEqual(first["pending"], 1)
+        self.assertEqual(first["dry_run"], 1)
+        # Queued but not yet handled during a dry run must not unexpectedly
+        # be liked when the operator switches to live mode.
+        second = asyncio.run(liker.scan_once())
+        self.assertEqual(second["dry_run"], 1)
+        self.assertEqual(second["pending"], 0)
+        self.assertEqual(len(self.net.likes), 0)
+
+    def test_queue_is_not_inherited_by_another_bot_account(self):
+        liker = self.service(max_likes_per_cycle=1)
+        asyncio.run(liker.scan_once())
+        self.net.feed.extend([
+            mood("111111", "feed0001"), mood("111111", "feed0002")
+        ])
+        self.assertEqual(asyncio.run(liker.scan_once())["pending"], 1)
+        other = QzoneAutoLike(self.path, http_get=self.net.get, http_post=self.net.post)
+        self.assertTrue(other.attach_bot(self.bot, "888888"))
+        self.assertEqual(len(other._state["pending"]), 0)
+
     def test_first_scan_only_indexes_then_likes_new_friend_post_once(self):
         liker = self.service()
         first = asyncio.run(liker.scan_once())
