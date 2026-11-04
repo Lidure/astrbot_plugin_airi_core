@@ -625,11 +625,16 @@ class QzoneAutoLike:
         return parse_like_state(status, text)
 
     async def scan_once(self) -> dict[str, int]:
-        """扫描好友：按发布时间识别真正新说说，首次访问也不漏赞。"""
+        """Discover and durably queue *all* eligible new posts, then like a batch."""
         if self._bot is None or not self._self_qq:
             raise RuntimeError("尚未从 OneBot 消息捕获机器人连接")
         async with self._scan_lock:
-            result = {"new": 0, "liked": 0, "baseline": 0, "recovered": 0, "already_liked": 0}
+            result = {
+                "new": 0, "queued": 0, "attempted": 0, "liked": 0,
+                "baseline": 0, "recovered": 0, "already_liked": 0,
+                "failed": 0, "deferred": 0, "skipped": 0, "dry_run": 0,
+                "pending": len(self._state["pending"]),
+            }
             if time.time() < self._suspended_until:
                 return result
             try:
@@ -644,8 +649,10 @@ class QzoneAutoLike:
                 headers = self._headers(cookie)
                 sources = self._sources()
                 initialized = set(self._state["initialized"])
-                read_checks = 0
                 started = float(self._state["started_at"])
+
+                # Phase 1: scan every source, collect all candidates.
+                # Do not stop discovering when the per-cycle like limit is met.
                 for name, target in sources:
                     url = self._feed_url(target, gtk)
                     status, body = await asyncio.to_thread(self._get, url, headers)
@@ -656,19 +663,16 @@ class QzoneAutoLike:
                     if status != 200:
                         raise RuntimeError(f"QQ 空间动态读取 HTTP {status}")
 
-                    posted_times = parse_mood_publish_times(body)
+                    published_times = parse_mood_publish_times(body)
                     moods = [
                         (author, fid) for author, fid in parse_mood_links(body)
                         if author in self._friends and (target is None or author == target)
                     ]
-                    # For confirmed empty feeds, mark an empty baseline, so
-                    # the friend's first-ever post is not mistaken for history.
                     valid_empty_feed = any(
                         marker in body for marker in ("friend_data", "host_data", "data_items")
                     )
                     if not moods and not valid_empty_feed:
                         continue
-
                     first_source_scan = name not in initialized
                     if first_source_scan:
                         initialized.add(name)
@@ -677,73 +681,48 @@ class QzoneAutoLike:
 
                     for author, fid in moods:
                         key = author + ":" + fid
-                        already_seen = key in self._state["seen"]
-                        published = posted_times.get((author, fid))
-                        # Do not retroactively like pre-activation history,
-                        # or posts older than one day after a long outage.
-                        recent_since_enabled = (
+                        if key in self._state["resolved"]:
+                            continue
+                        if any(
+                            p["author"] == author and p["fid"] == fid
+                            for p in self._state["pending"]
+                        ):
+                            continue
+                        seen = key in self._state["seen"]
+                        published = published_times.get((author, fid))
+                        recent = (
                             published is not None
                             and started <= published <= time.time() + 60
                             and time.time() - published <= 86400
                         )
-
-                        if already_seen:
-                            if key in self._state["resolved"] or not recent_since_enabled:
+                        if seen:
+                            # Legacy baseline: previous versions indexed these
+                            # posts without marking whether a like was attempted.
+                            # Read-only verification occurs when dequeued.
+                            if not recent:
                                 continue
-                            # v1.3.16 and earlier recorded baseline posts as
-                            # "seen" with no attempt status. Revisit only posts
-                            # known to be published after this bot was enabled.
-                            if read_checks >= 5 or result["new"] >= self.max_likes:
-                                continue
-                            read_checks += 1
-                            liked_state = await self._read_like_state(
-                                author, fid, gtk, headers
-                            )
-                            if liked_state is None:
-                                continue
-                            if liked_state:
-                                self._state["resolved"][key] = time.time()
-                                result["already_liked"] += 1
-                                self._save()
-                                continue
-                        else:
-                            if (first_source_scan and not recent_since_enabled) or (
-                                published is not None and not recent_since_enabled
-                            ):
-                                # Unknown time on first scan is conservatively
-                                # treated as old; known pre-start post is old.
-                                self._state["seen"][key] = time.time()
-                                result["baseline"] += 1
-                                continue
-                            if result["new"] >= self.max_likes:
-                                # Do not mark an unprocessed new post as seen.
-                                # It can be picked up by a later scan.
-                                continue
-
-                        if result["new"] >= self.max_likes:
-                            continue
-                        # Mark attempt before POST so a crash cannot cause
-                        # a double-like. Keep legacy "seen" in place.
-                        self._state["seen"][key] = time.time()
-                        self._state["resolved"][key] = time.time()
-                        self._save()
-                        result["new"] += 1
-                        if already_seen:
-                            result["recovered"] += 1
-                        if self.dry_run:
-                            self._dry_count += 1
+                            if self._enqueue(author, fid, published, legacy=True):
+                                result["queued"] += 1
                             continue
 
-                        await self._sleep(random.uniform(
-                            self.delay_min, self.delay_max
-                        ))
-                        success = await self._send_like(author, fid, gtk, headers)
-                        if success:
-                            self._liked += 1
-                            result["liked"] += 1
-                        else:
-                            self._failed += 1
-                self._save()
+                        # Pre-activation history is never queued.
+                        # If the first scan lacks a trustworthy publish time,
+                        # conservatively only baseline that source's posts.
+                        if (
+                            (first_source_scan and not recent)
+                            or (published is not None and not recent)
+                        ):
+                            self._state["seen"][key] = time.time()
+                            result["baseline"] += 1
+                            continue
+                        if self._enqueue(author, fid, published):
+                            result["new"] += 1
+                            result["queued"] += 1
+                    self._save()
+
+                # Phase 2: process one bounded queue batch. Remaining tasks
+                # survive restart and do not need to reappear in the feed.
+                await self._drain_pending(gtk, headers, result)
                 self._last_error = ""
             except QzoneAccessError as exc:
                 self._suspended_until = time.time() + 3600
@@ -755,6 +734,8 @@ class QzoneAutoLike:
             finally:
                 self._last_scan = time.time()
                 self._baseline_count += result["baseline"]
+                result["pending"] = len(self._state["pending"])
+                self._save()
             return result
 
     async def _worker(self) -> None:
@@ -763,9 +744,12 @@ class QzoneAutoLike:
                 summary = await self.scan_once()
                 self._log(
                     "info",
-                    "本轮结束：新增=%d 点赞=%d 初次索引=%d 补漏=%d 已点赞=%d 已知好友=%d"
-                    % (summary["new"], summary["liked"], summary["baseline"],
-                       summary["recovered"], summary["already_liked"], len(self._friends)),
+                    "本轮结束：新发现=%d 入队=%d 尝试=%d 点赞成功=%d 初次索引=%d"
+                    " 补漏=%d 已点赞=%d 待处理=%d 失败=%d 已知好友=%d"
+                    % (summary["new"], summary["queued"], summary["attempted"],
+                       summary["liked"], summary["baseline"], summary["recovered"],
+                       summary["already_liked"], summary["pending"], summary["failed"],
+                       len(self._friends)),
                 )
                 await self._sleep(self.interval)
         except asyncio.CancelledError:
