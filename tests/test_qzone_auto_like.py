@@ -188,6 +188,92 @@ class QzoneAutoLikeTests(unittest.TestCase):
         liker = self.service()
         self.assertAlmostEqual(liker._state["started_at"], older, delta=1)
 
+    def test_interrupted_old_resolved_is_requeued_and_liked_once(self):
+        liker = self.service()
+        published = int(time.time()) - 30
+        key = "111111:aabbccee"
+        self.net.feed = [self.feed_mood("111111", "aabbccee", published)]
+        liker._state["started_at"] = time.time() - 3600
+        liker._state["seen"][key] = published + 2
+        liker._state["resolved"][key] = published + 2
+        liker._state["legacy_audit_before"] = time.time()
+        liker._save()
+        result = asyncio.run(liker.scan_once())
+        self.assertEqual(result["legacy_restored"], 1)
+        self.assertEqual(result["liked"], 1)
+        self.assertEqual(result["pending"], 0)
+        self.assertEqual(len(self.net.likes), 1)
+        self.assertIn(key, liker._state["legacy_audited"])
+        # The same post must not be submitted again, including after restart.
+        restart = self.service()
+        again = asyncio.run(restart.scan_once())
+        self.assertEqual(again["legacy_restored"], 0)
+        self.assertEqual(again["attempted"], 0)
+        self.assertEqual(len(self.net.likes), 1)
+
+    def test_old_resolved_already_liked_only_reads_and_marks_audited(self):
+        liker = self.service()
+        published = int(time.time()) - 40
+        key = "111111:a1b2c3d4"
+        self.net.feed = [self.feed_mood("111111", "a1b2c3d4", published)]
+        liker._state["started_at"] = time.time() - 3600
+        liker._state["seen"][key] = published + 3
+        liker._state["resolved"][key] = published + 3
+        liker._state["legacy_audit_before"] = time.time()
+        self.net.liked_keys.add("http://user.qzone.qq.com/111111/mood/a1b2c3d4")
+        result = asyncio.run(liker.scan_once())
+        self.assertEqual(result["legacy_verified"], 1)
+        self.assertEqual(result["legacy_restored"], 0)
+        self.assertEqual(result["liked"], 0)
+        self.assertEqual(len(self.net.likes), 0)
+        self.assertIn(key, liker._state["resolved"])
+        self.assertIn(key, liker._state["legacy_audited"])
+
+    def test_old_resolved_predating_activation_is_not_recovered(self):
+        liker = self.service()
+        published = int(time.time()) - 7200
+        key = "111111:a1b2c3d5"
+        self.net.feed = [self.feed_mood("111111", "a1b2c3d5", published)]
+        liker._state["started_at"] = time.time() - 3600
+        liker._state["seen"][key] = published + 1
+        liker._state["resolved"][key] = published + 1
+        result = asyncio.run(liker.scan_once())
+        self.assertEqual(result["legacy_restored"], 0)
+        self.assertEqual(len(self.net.likes), 0)
+
+    def test_uncertain_legacy_status_stays_resolved_for_future_read(self):
+        liker = self.service()
+        published = int(time.time()) - 20
+        key = "111111:a1b2c3d6"
+        self.net.feed = [self.feed_mood("111111", "a1b2c3d6", published)]
+        liker._state["started_at"] = time.time() - 3600
+        liker._state["seen"][key] = published + 1
+        liker._state["resolved"][key] = published + 1
+        self.net.verify_status = 500
+        result = asyncio.run(liker.scan_once())
+        self.assertEqual(result["legacy_restored"], 0)
+        self.assertIn(key, liker._state["resolved"])
+        self.assertNotIn(key, liker._state["legacy_audited"])
+        self.assertEqual(len(self.net.likes), 0)
+        self.net.verify_status = 200
+        next_round = asyncio.run(liker.scan_once())
+        self.assertEqual(next_round["legacy_restored"], 1)
+        self.assertEqual(next_round["liked"], 1)
+
+    def test_non_recent_or_newly_resolved_entries_are_not_repaired(self):
+        liker = self.service()
+        published = int(time.time()) - 20
+        key = "111111:a1b2c3d7"
+        self.net.feed = [self.feed_mood("111111", "a1b2c3d7", published)]
+        liker._state["started_at"] = time.time() - 3600
+        liker._state["seen"][key] = published + 2
+        # This entry was resolved *after* the audit cut-off: new, verified code.
+        liker._state["legacy_audit_before"] = published + 3
+        liker._state["resolved"][key] = published + 4
+        result = asyncio.run(liker.scan_once())
+        self.assertEqual(result["legacy_restored"], 0)
+        self.assertEqual(len(self.net.likes), 0)
+
     def test_cookie_gtk_requires_skey_and_prefers_p_skey(self):
         self.assertEqual(
             gtk_from_cookie("p_skey=a; skey=b"), gtk_from_cookie("p_skey=a")
