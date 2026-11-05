@@ -10,7 +10,7 @@
 
 <p>
   <a href="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml"><img src="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml/badge.svg" alt="Tests" /></a>
-  <img src="https://img.shields.io/badge/version-v1.3.20-f08aab?style=flat" alt="Version v1.3.20" />
+  <img src="https://img.shields.io/badge/version-v1.3.21-f08aab?style=flat" alt="Version v1.3.21" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.12-5575ad?style=flat" alt="Python 3.10 / 3.12 CI" />
   <img src="https://img.shields.io/badge/AstrBot-Plugin-805ad5?style=flat" alt="AstrBot Plugin" />
   <img src="https://img.shields.io/badge/OneBot-v11-49a6a6?style=flat" alt="OneBot v11" />
@@ -41,7 +41,7 @@
 | **📮 好友申请与群邀请** | 自动同意好友申请，或将好友/群邀请交给指定 QQ 私聊审批 |
 | **👆 戳一戳排行榜** | 统计群友戳 Bot 的次数，生成带头像的日榜、历史榜、全局榜及跨群榜 |
 | **💗 QQ 空间自动点赞** | 定时扫描好友新说说，队列持久化、限速点赞、状态二次核验、断点续处理 |
-| **💞 资料卡自动回赞** | 收到他人点赞机器人 QQ 资料卡的通知后，按限额回赞（与空间说说点赞独立） |
+| **💞 资料卡自动回赞** | 收到资料卡点赞通知后，当天针对同一用户执行一次尽量点满的回赞流程 |
 
 <details>
 <summary><strong>了解一些设计细节</strong></summary>
@@ -150,7 +150,7 @@
 | 🎉 入群欢迎 | 欢迎开关；文字；图片 | 关闭 |
 | 📮 好友申请与群邀请 | 自动同意好友；人工审批；审批 QQ | 关闭 |
 | 👆 戳一戳与排行榜 | Poke 统计；单次排行上限 | 统计开启 |
-| 💞 资料卡自动回赞 | 自动回赞开关；回赞次数；每日上限；冷却间隔 | 关闭 |
+| 💞 资料卡自动回赞 | **仅一个自动回赞开关**；自动尝试当日 QQ 可用额度 | 关闭 |
 | 💗 QQ 空间自动点赞 | 自动点赞开关；扫描间隔；每轮数量；高级设置 | 关闭 |
 
 旧版本升级时会尝试自动迁移自定义配置。**请不要为了“重新初始化”而随意删除配置文件或插件数据目录**，否则可能丢失累计榜和待处理记录。
@@ -176,43 +176,50 @@
 
 ## 💞 QQ 资料卡自动回赞
 
-这是与**QQ 空间说说自动点赞**完全不同的功能。有人给 Bot 的**QQ 个人资料卡片**点赞时，SnowLuma / OneBot 会发送 `notice/notify/profile_like` 通知。Airi Core 根据通知中的点赞人 `operator_id`，调用 `send_like` 给对方资料卡回赞。
+有人给 Bot 的 **QQ 个人资料卡**点赞时，插件通过 SnowLuma / OneBot 的 `notify/profile_like` 通知取得点赞人，并调用 `send_like` 对其资料卡回赞。**与 QQ 空间说说点赞完全独立。**
 
-> [!NOTE]
-> **默认关闭**，不会主动扫描陌生人的资料卡，也不会给说说、消息表情或群戳一戳自动回赞。功能依赖上游正确上报 `profile_like` 通知；如果 SnowLuma 版本没有提供该通知，插件不会自动收到点赞事件。
+> [!TIP]
+> 回赞采用 **「当天第一次收到通知 → 一轮尽量点满 → 当天不再重复」** 的方式，不设人为的冷却间隔，也不需要配置点赞次数。
 
-### 开启方式
+### 只需一个开关
 
-进入 **AstrBot → Airi 核心工具🌸 → 配置 → 资料卡自动回赞**，开启“收到资料卡点赞后自动回赞”，再保存设置并按面板提示重载插件。
+进入 **AstrBot → Airi 核心工具🌸 → 配置 → 资料卡自动回赞**，开启 **「收到资料卡点赞后当天一次性回赞」** 并保存。默认关闭，不会因升级而自动启用。
 
-| 配置项 | 默认值 | 说明 |
+| 唯一配置项 | 默认值 | 含义 |
 | :--- | :---: | :--- |
-| `profile_like_auto_reply_enabled` | `false` | 是否启用自动回赞 |
-| `profile_like_reply_times` | `1` | 每条符合条件的通知回赞次数，范围 1–10 |
-| `profile_like_daily_limit` | `10` | 每位点赞人每日最多自动回赞次数，最高 10 |
-| `profile_like_cooldown_sec` | `120` | 同一人两次回赞之间的冷却时间（秒），最低 30 |
+| `profile_like_auto_reply_enabled` | `false` | 有人点赞 Bot 资料卡后，自动尝试给该用户点满当天可用的赞 |
 
-### 处理流程与安全措施
+### 实际运行过程
 
 ```text
-对方点赞 Bot 的 QQ 资料卡
-            ↓
-SnowLuma 上报 profile_like 通知
-            ↓
-检查点赞人、Bot 身份和通知时间
-            ↓
-去重 / 冷却 / 每日回赞次数限制
-            ↓
-先保存本次尝试，防止重启重复点赞
-            ↓
-通过 OneBot send_like 给对方资料卡回赞
+收到来自某位用户的 profile_like 通知
+                  │
+                  ▼
+       今天是否已处理过这位用户？
+           │ 是             │ 否
+           ▼                ▼
+         跳过          先保存处理记录
+                            │
+                            ▼
+               本次连续调用 send_like
+                每批 10 个，最多 5 批
+                            │
+                  ┌─────────┴────────┐
+                  ▼                  ▼
+             返回成功           QQ 报上限/失败
+                  │                  │
+            继续下一批           立即停止
+                  └─────────┬────────┘
+                            ▼
+                  当天不再重复触发
 ```
 
-- **默认每条有效通知回 1 个赞**；`times` 表示对方在通知中的点赞次数，插件不会默认无上限地镜像。
-- 同一人短时间内重复点赞或上游重复上报时，冷却与事件去重会避免连续发送；每日限额按服务器本地日期计算。
-- 对机器人自身、格式不完整或过期的通知不回赞；`send_like` 失败会留下记录，不因未知网络状态盲目重试。
-- 处理状态保存在 `data/plugin_data/astrbot_plugin_airi_core/profile_like_replies.json`，支持重启防重，不保存点赞人昵称或聊天内容。
-- 需要 QQ / OneBot 接入端支持 `send_like`；对非好友或受限账号，QQ 端可能拒绝操作。插件不会绕过限制。
+- **一次回赞流程最多尝试 50 个赞**，参考常见 OneBot 资料卡点赞插件采用的 **5 × 10** 分批方式。这里的“一次”指一次通知触发的完整流程，而不是只发一个接口请求。
+- QQ 实际允许数量会受账号权限、好友关系、当天余额和平台策略影响；**最多尝试 50 不代表一定成功收到 50 个赞**。
+- 若已经达到 QQ 限额，或某批接口返回错误，会立即结束本轮；当天不因新通知重试，避免刷赞或重复操作。
+- 按 **机器人 QQ + 点赞人 QQ + 服务器本地日期** 去重，AstrBot 重载、重启后也不会重复回赞；即使中途崩溃也不会从头再刷。
+- 自动回赞依赖上游真正上报 `profile_like` 通知；不会主动扫描其他资料卡，也不会把空间动态赞、消息表情赞、Poke 当成资料卡赞。
+- 状态保存在 `data/plugin_data/astrbot_plugin_airi_core/profile_like_replies.json`，沿用旧版文件，不保存点赞人昵称、聊天内容或 Cookie。
 
 ## 💗 QQ 空间点赞如何工作？
 
@@ -341,7 +348,8 @@ sudo apt install -y fonts-noto-cjk
 
 | 版本 | 重点改进 |
 | :--- | :--- |
-| **v1.3.20** | 新增资料卡自动回赞，支持重复通知去重、冷却和每日上限 |
+| **v1.3.21** | 简化资料卡回赞：当天一次尽量点满，移除次数与冷却配置 |
+| **v1.3.20** | 新增资料卡自动回赞及跨重启去重能力 |
 | **v1.3.19** | 安全修复旧版本热重载中断导致的空间漏赞记录 |
 | **v1.3.18** | 新增跨扫描、跨重启的持久化待点赞队列 |
 | **v1.3.17** | 根据说说发布时间识别新动态，减少首次扫描漏赞 |
