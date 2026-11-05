@@ -38,7 +38,7 @@ def parse_profile_like_notice(raw: Any, *, self_id: str = "") -> tuple[str, str,
         return None
     try:
         occurred = int(raw.get("time") or 0)
-        times = int(raw.get("times") or 1)
+        times = int(raw["times"]) if raw.get("times") is not None else 1
     except (ValueError, TypeError, OverflowError):
         return None
     if times <= 0:
