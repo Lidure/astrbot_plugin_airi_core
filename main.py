@@ -20,6 +20,7 @@ if __package__:
     from .friend_requests import resolve_onebot_call_action
     from .config_sections import migrate as migrate_settings, option
     from .qzone_auto_like import QzoneAutoLike
+    from .profile_like_reply import ProfileLikeReturner
     from .group_rank_renderer import render_group_rank_image, resolve_group_display_names
     from .request_approval import RequestApprovalManager
     from .mention_media import (
@@ -42,6 +43,7 @@ else:
     from friend_requests import resolve_onebot_call_action
     from config_sections import migrate as migrate_settings, option
     from qzone_auto_like import QzoneAutoLike
+    from profile_like_reply import ProfileLikeReturner
     from group_rank_renderer import render_group_rank_image, resolve_group_display_names
     from request_approval import RequestApprovalManager
     from mention_media import (
@@ -306,6 +308,14 @@ class Main(Star):
         self._request_approval = RequestApprovalManager(
             self._plugin_data_dir / "pending_requests.json"
         )
+        self._profile_like_reply = ProfileLikeReturner(
+            self._plugin_data_dir / "profile_like_replies.json",
+            logger=logger,
+            enabled=bool(option(self.config, "profile_like_auto_reply_enabled", False)),
+            reply_times=_coerce_int(option(self.config, "profile_like_reply_times"), 1),
+            daily_limit=_coerce_int(option(self.config, "profile_like_daily_limit"), 10),
+            cooldown_sec=_coerce_int(option(self.config, "profile_like_cooldown_sec"), 120),
+        )
         self.qzone_owner_qq = str(option(self.config, "qzone_owner_qq", "") or "").strip()
         self._qzone_liker = QzoneAutoLike(
             self._plugin_data_dir / "qzone_auto_like.json",
@@ -337,6 +347,7 @@ class Main(Star):
             f" | 审批QQ: {self.request_approval_qq or '未配置'}"
             f" | Poke统计: {'启用' if self.poke_stats_enabled else '未启用'}"
             f" | Poke排行上限: {self.poke_rank_max_limit} 人"
+            f" | 资料卡自动回赞: {'启用' if self._profile_like_reply.enabled else '关闭'}"
             f" | 空间自动点赞: {'启用' if self._qzone_liker.enabled else '关闭'}"
             f" / {'只读测试' if self._qzone_liker.dry_run else '实际点赞'}"
             " | Poke日榜切日: 04:00"
@@ -974,6 +985,37 @@ class Main(Star):
             except Exception as exc:
                 logger.exception(f"记录 Poke 统计失败: {exc}")
             return
+
+        # SnowLuma/NapCat send notify/profile_like for a QQ profile-card
+        # like. This is NOT a Qzone post-like notice.
+        if self._profile_like_reply.enabled:
+            from_like = (
+                raw_message.get("notice_type") == "notify"
+                and raw_message.get("sub_type") == "profile_like"
+            )
+            if from_like:
+                bot = getattr(event, "bot", None)
+                action = resolve_onebot_call_action(event)
+
+                async def _send_profile_like(user_id: int, times: int):
+                    if action is not None:
+                        return await action("send_like", user_id=user_id, times=times)
+                    method = getattr(bot, "send_like", None)
+                    if callable(method):
+                        return await method(user_id=user_id, times=times)
+                    raise RuntimeError("当前 OneBot 接入端不支持 send_like")
+
+                try:
+                    await self._profile_like_reply.handle_notice(
+                        raw_message,
+                        _send_profile_like,
+                        self_id=str(event.get_self_id() or ""),
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Airi 资料卡自动回赞处理失败：%s", type(exc).__name__
+                    )
+                return
 
         if not self.welcome_enabled:
             return
