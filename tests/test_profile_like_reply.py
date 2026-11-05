@@ -3,7 +3,6 @@ import json
 import tempfile
 import time
 import unittest
-from datetime import datetime
 from pathlib import Path
 
 from profile_like_reply import ProfileLikeReturner, parse_profile_like_notice
@@ -33,9 +32,8 @@ def notice(clock, operator="11223344", bot="99887766", times=1, **extra):
 class ProfileLikeParseTests(unittest.TestCase):
     def test_accepts_real_snowluma_event_shape(self):
         clock = FakeClock()
-        evt = notice(clock, times=5)
         self.assertEqual(
-            parse_profile_like_notice(evt, self_id="99887766"),
+            parse_profile_like_notice(notice(clock, times=5), self_id="99887766"),
             ("99887766", "11223344", int(clock()), 5),
         )
 
@@ -72,13 +70,8 @@ class ProfileLikeReturnerTests(unittest.IsolatedAsyncioTestCase):
         self.sent = []
 
     def liker(self, **opts):
-        config = {
-            "enabled": True, "clock": self.clock,
-            "reply_times": 1, "daily_limit": 10,
-            "cooldown_sec": 120,
-        }
-        config.update(opts)
-        return ProfileLikeReturner(self.path, **config)
+        return ProfileLikeReturner(self.path, enabled=opts.pop("enabled", True),
+                                   clock=self.clock, **opts)
 
     async def send(self, user_id, times):
         self.sent.append((user_id, times))
@@ -92,111 +85,170 @@ class ProfileLikeReturnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.sent, [])
         self.assertFalse(self.path.exists())
 
-    async def test_enabled_replies_once_with_configured_times(self):
+    async def test_one_event_attempts_five_batches_ten_each(self):
         liker = self.liker()
-        evt = notice(self.clock, times=9)
+        evt = notice(self.clock, times=1)
         self.assertEqual(
             await liker.handle_notice(evt, self.send, self_id="99887766"), "sent"
         )
-        self.assertEqual(self.sent, [(11223344, 1)])
+        self.assertEqual(self.sent, [(11223344, 10)] * 5)
         state = json.loads(self.path.read_text(encoding="utf-8"))
-        self.assertEqual(state["accounts"]["99887766"]["users"]["11223344"]["attempted"], 1)
+        user = state["accounts"]["99887766"]["users"]["11223344"]
+        self.assertEqual(user["submitted"], 50)
+        self.assertEqual(user["status"], "sent")
+        self.assertEqual(state["version"], 2)
         self.assertNotIn("operator_nick", self.path.read_text(encoding="utf-8"))
 
-    async def test_exact_event_duplicate_ignored(self):
+    async def test_incoming_multiple_likes_do_not_change_batch_size(self):
+        liker = self.liker()
+        self.assertEqual(
+            await liker.handle_notice(notice(self.clock, times=9), self.send), "sent"
+        )
+        self.assertEqual(self.sent, [(11223344, 10)] * 5)
+
+    async def test_same_event_replayed_or_liked_again_same_day_is_ignored(self):
         liker = self.liker()
         evt = notice(self.clock)
         self.assertEqual(await liker.handle_notice(evt, self.send), "sent")
-        self.assertEqual(await liker.handle_notice(evt, self.send), "duplicate")
-        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(await liker.handle_notice(evt, self.send), "already_done")
+        self.clock.advance(3600)
+        self.assertEqual(
+            await liker.handle_notice(notice(self.clock), self.send), "already_done"
+        )
+        self.assertEqual(len(self.sent), 5)
 
-    async def test_cooldown_does_not_send_second_event(self):
-        liker = self.liker(cooldown_sec=120)
+    async def test_new_day_triggers_one_new_full_round(self):
+        liker = self.liker()
         self.assertEqual(await liker.handle_notice(notice(self.clock), self.send), "sent")
-        self.clock.advance(30)
-        self.assertEqual(await liker.handle_notice(notice(self.clock), self.send), "cooldown")
-        self.clock.advance(95)
-        self.assertEqual(await liker.handle_notice(notice(self.clock), self.send), "sent")
-        self.assertEqual(len(self.sent), 2)
-
-    async def test_daily_limit_clamps_send_times(self):
-        liker = self.liker(reply_times=4, daily_limit=5, cooldown_sec=30)
-        self.assertEqual(await liker.handle_notice(notice(self.clock), self.send), "sent")
-        self.clock.advance(31)
-        self.assertEqual(await liker.handle_notice(notice(self.clock), self.send), "sent")
-        self.clock.advance(31)
-        self.assertEqual(await liker.handle_notice(notice(self.clock), self.send), "daily_limit")
-        self.assertEqual(self.sent, [(11223344, 4), (11223344, 1)])
-
-    async def test_new_day_resets_limit(self):
-        liker = self.liker(daily_limit=1, cooldown_sec=30)
-        evt = notice(self.clock)
-        self.assertEqual(await liker.handle_notice(evt, self.send), "sent")
         self.clock.advance(86400)
         self.assertEqual(await liker.handle_notice(notice(self.clock), self.send), "sent")
-        self.assertEqual(len(self.sent), 2)
+        self.assertEqual(len(self.sent), 10)
 
-    async def test_restart_preserves_dedupe_and_cooldown(self):
-        a = self.liker()
-        evt = notice(self.clock)
-        self.assertEqual(await a.handle_notice(evt, self.send), "sent")
-        b = self.liker()
-        self.assertEqual(await b.handle_notice(evt, self.send), "duplicate")
-        self.clock.advance(20)
-        self.assertEqual(await b.handle_notice(notice(self.clock), self.send), "cooldown")
-        self.assertEqual(len(self.sent), 1)
-
-    async def test_api_exception_does_not_repeat_uncertain_request(self):
+    async def test_stale_cross_midnight_replay_is_ignored(self):
         liker = self.liker()
-        async def send_error(user_id, times):
-            self.sent.append((user_id, times))
-            raise TimeoutError("lost connection after send")
-        evt = notice(self.clock)
-        self.assertEqual(await liker.handle_notice(evt, send_error), "failed")
-        self.assertEqual(await self.liker().handle_notice(evt, self.send), "duplicate")
-        self.assertEqual(len(self.sent), 1)
+        prior_day = notice(self.clock)
+        self.clock.advance(86400)
+        self.assertEqual(await liker.handle_notice(prior_day, self.send), "stale")
+        self.assertEqual(self.sent, [])
 
-    async def test_api_failed_retcode_is_not_reported_as_sent(self):
+    async def test_restart_preserves_one_per_day_even_without_event_fingerprint(self):
+        liker = self.liker()
+        self.assertEqual(await liker.handle_notice(notice(self.clock), self.send), "sent")
+        another = self.liker()
+        self.clock.advance(1800)
+        self.assertEqual(
+            await another.handle_notice(notice(self.clock), self.send), "already_done"
+        )
+        self.assertEqual(len(self.sent), 5)
+
+    async def test_legacy_v1_user_already_liked_today_is_not_liked_again(self):
+        from datetime import datetime
+        today = datetime.fromtimestamp(self.clock()).date().isoformat()
+        self.path.write_text(json.dumps({
+            "version": 1,
+            "accounts": {
+                "99887766": {
+                    "date": today,
+                    "users": {"11223344": {"attempted": 1, "last_at": self.clock()}},
+                    "events": {"old-event": self.clock()},
+                }
+            },
+        }), encoding="utf-8")
+        liker = self.liker()
+        self.assertEqual(
+            await liker.handle_notice(notice(self.clock), self.send), "already_done"
+        )
+        self.assertEqual(
+            await liker.handle_notice(notice(self.clock, operator="22334455"), self.send),
+            "sent",
+        )
+        self.assertEqual(len(self.sent), 5)
+        state = json.loads(self.path.read_text(encoding="utf-8"))
+        self.assertNotIn("events", state["accounts"]["99887766"])
+
+    async def test_on_first_rejection_stop_and_do_not_repeat_today(self):
+        liker = self.liker()
+        async def limit(user_id, times):
+            self.sent.append((user_id, times))
+            return {"status": "failed", "retcode": 1200,
+                    "wording": "点赞失败 今日同一好友点赞数已达上限"}
+        self.assertEqual(await liker.handle_notice(notice(self.clock), limit), "limit")
+        self.clock.advance(360)
+        self.assertEqual(
+            await liker.handle_notice(notice(self.clock), limit), "already_done"
+        )
+        self.assertEqual(self.sent, [(11223344, 10)])
+
+    async def test_partial_success_then_rejection_is_recorded_once(self):
+        liker = self.liker()
+        async def partial(user_id, times):
+            self.sent.append((user_id, times))
+            if len(self.sent) == 3:
+                return {"status": "failed", "retcode": 1200,
+                        "wording": "今日同一好友点赞数已达上限"}
+            return {"status": "ok", "retcode": 0}
+        self.assertEqual(await liker.handle_notice(notice(self.clock), partial), "limit")
+        self.assertEqual(self.sent, [(11223344, 10)] * 3)
+        state = json.loads(self.path.read_text(encoding="utf-8"))
+        user = state["accounts"]["99887766"]["users"]["11223344"]
+        self.assertEqual(user["submitted"], 20)
+        self.assertEqual(user["status"], "limit")
+
+    async def test_exception_stops_remaining_batches_without_retry(self):
         liker = self.liker()
         async def failed(user_id, times):
             self.sent.append((user_id, times))
-            return {"status": "failed", "retcode": 100}
+            raise TimeoutError("unknown whether QQ applied the like")
         evt = notice(self.clock)
         self.assertEqual(await liker.handle_notice(evt, failed), "failed")
-        self.assertEqual(await liker.handle_notice(evt, failed), "duplicate")
-
-    async def test_ignores_stale_events(self):
-        liker = self.liker()
-        msg = notice(self.clock)
-        msg["time"] = int(self.clock()) - 4000
-        self.assertEqual(await liker.handle_notice(msg, self.send), "stale")
-        self.assertEqual(self.sent, [])
-
-    async def test_concurrent_same_event_sends_only_once(self):
-        liker = self.liker()
-        evt = notice(self.clock)
-        async def slow(user_id, times):
-            await asyncio.sleep(0.01)
-            return await self.send(user_id, times)
-        results = await asyncio.gather(
-            liker.handle_notice(evt, slow), liker.handle_notice(evt, slow)
-        )
-        self.assertEqual(sorted(results), ["duplicate", "sent"])
+        self.assertEqual(await self.liker().handle_notice(evt, self.send), "already_done")
         self.assertEqual(len(self.sent), 1)
 
-    async def test_different_bots_use_separate_quotas(self):
-        liker = self.liker(daily_limit=1)
+    async def test_cancelled_inflight_batch_is_already_reserved(self):
+        liker = self.liker()
+        async def cancelled(user_id, times):
+            self.sent.append((user_id, times))
+            raise asyncio.CancelledError()
+        evt = notice(self.clock)
+        with self.assertRaises(asyncio.CancelledError):
+            await liker.handle_notice(evt, cancelled)
+        self.assertEqual(await self.liker().handle_notice(evt, self.send), "already_done")
+        self.assertEqual(len(self.sent), 1)
+
+    async def test_concurrent_notifications_same_person_only_one_round(self):
+        liker = self.liker()
+        async def slow(user_id, times):
+            await asyncio.sleep(0.005)
+            return await self.send(user_id, times)
+        n1 = notice(self.clock, times=1)
+        n2 = notice(self.clock, times=2)
+        results = await asyncio.gather(
+            liker.handle_notice(n1, slow), liker.handle_notice(n2, slow)
+        )
+        self.assertEqual(sorted(results), ["already_done", "sent"])
+        self.assertEqual(len(self.sent), 5)
+
+    async def test_two_people_and_two_bots_are_tracked_independently(self):
+        liker = self.liker()
         self.assertEqual(await liker.handle_notice(notice(self.clock), self.send), "sent")
         self.assertEqual(
-            await liker.handle_notice(notice(self.clock, bot="12345678"), self.send), "sent"
+            await liker.handle_notice(notice(self.clock, operator="22334455"), self.send),
+            "sent",
         )
-        self.assertEqual(len(self.sent), 2)
+        self.assertEqual(
+            await liker.handle_notice(notice(self.clock, bot="12345678"), self.send),
+            "sent",
+        )
+        self.assertEqual(len(self.sent), 15)
 
-    async def test_nonprofile_notice_does_not_touch_state(self):
+    async def test_non_profile_and_stale_notices_do_nothing(self):
         liker = self.liker()
-        raw = notice(self.clock)
-        raw["sub_type"] = "poke"
-        self.assertEqual(await liker.handle_notice(raw, self.send), "ignored")
+        n1 = notice(self.clock)
+        n1["sub_type"] = "poke"
+        self.assertEqual(await liker.handle_notice(n1, self.send), "ignored")
+        n2 = notice(self.clock)
+        n2["time"] = int(self.clock()) - 4000
+        self.assertEqual(await liker.handle_notice(n2, self.send), "stale")
         self.assertEqual(self.sent, [])
         self.assertFalse(self.path.exists())
 
