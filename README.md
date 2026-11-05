@@ -10,7 +10,7 @@
 
 <p>
   <a href="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml"><img src="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml/badge.svg" alt="Tests" /></a>
-  <img src="https://img.shields.io/badge/version-v1.3.19-f08aab?style=flat" alt="Version v1.3.19" />
+  <img src="https://img.shields.io/badge/version-v1.3.20-f08aab?style=flat" alt="Version v1.3.20" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.12-5575ad?style=flat" alt="Python 3.10 / 3.12 CI" />
   <img src="https://img.shields.io/badge/AstrBot-Plugin-805ad5?style=flat" alt="AstrBot Plugin" />
   <img src="https://img.shields.io/badge/OneBot-v11-49a6a6?style=flat" alt="OneBot v11" />
@@ -24,7 +24,7 @@
 
 ## ✨ 项目简介
 
-**Airi Core** 是一款适用于 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 的辅助插件，围绕 QQ 机器人常见的交互场景提供一组可以独立开关的功能：AI 对话唤醒、LLM 主动 @ 与禁言、好友申请和群邀请审批、入群欢迎、戳一戳排行榜，以及 QQ 空间新说说自动点赞。
+**Airi Core** 是一款适用于 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 的辅助插件，围绕 QQ 机器人常见的交互场景提供一组可以独立开关的功能：AI 对话唤醒、LLM 主动 @ 与禁言、好友申请和群邀请审批、入群欢迎、戳一戳排行榜，以及 QQ 空间新说说自动点赞、资料卡点赞自动回赞。
 
 无需为了这些功能单独拼接多套脚本；在 AstrBot 插件面板中即可按功能分组管理。
 
@@ -41,6 +41,7 @@
 | **📮 好友申请与群邀请** | 自动同意好友申请，或将好友/群邀请交给指定 QQ 私聊审批 |
 | **👆 戳一戳排行榜** | 统计群友戳 Bot 的次数，生成带头像的日榜、历史榜、全局榜及跨群榜 |
 | **💗 QQ 空间自动点赞** | 定时扫描好友新说说，队列持久化、限速点赞、状态二次核验、断点续处理 |
+| **💞 资料卡自动回赞** | 收到他人点赞机器人 QQ 资料卡的通知后，按限额回赞（与空间说说点赞独立） |
 
 <details>
 <summary><strong>了解一些设计细节</strong></summary>
@@ -48,8 +49,8 @@
 - **按需启用**：不同功能独立开关。LLM 工具仅在启用时注册，避免无意义的工具开销。
 - **复用会话**：@Bot 唤醒会沿用 AstrBot 当前对话；处理引用图片失败时，不会假装识别成功。
 - **只统计有效 Poke**：只有群友戳机器人本人时才计数，群友互戳不算。
-- **数据跨重启保留**：Poke 统计、待审批请求、QQ 空间去重与待点赞队列都有独立持久化文件。
-- **保护原配置**：旧版扁平配置会自动迁移至六个功能分组，不需要手工删除旧配置。
+- **数据跨重启保留**：Poke 统计、待审批请求、QQ 空间队列和资料卡回赞记录分别持久化。
+- **保护原配置**：旧版扁平配置可自动迁移为分组配置，新功能单独成组，不需要手工删除旧配置。
 
 </details>
 
@@ -140,7 +141,7 @@
 
 ## ⚙️ 配置说明
 
-插件配置已整理为 **六个功能分组**，常用开关直接显示，细节选项放在对应位置，避免在一张配置页中堆满参数。
+插件配置已整理为 **七个功能分组**，常用开关直接显示，细节选项放在对应位置，避免在一张配置页中堆满参数。
 
 | 分组 | 主要选项 | 初始状态 |
 | :--- | :--- | :--- |
@@ -149,6 +150,7 @@
 | 🎉 入群欢迎 | 欢迎开关；文字；图片 | 关闭 |
 | 📮 好友申请与群邀请 | 自动同意好友；人工审批；审批 QQ | 关闭 |
 | 👆 戳一戳与排行榜 | Poke 统计；单次排行上限 | 统计开启 |
+| 💞 资料卡自动回赞 | 自动回赞开关；回赞次数；每日上限；冷却间隔 | 关闭 |
 | 💗 QQ 空间自动点赞 | 自动点赞开关；扫描间隔；每轮数量；高级设置 | 关闭 |
 
 旧版本升级时会尝试自动迁移自定义配置。**请不要为了“重新初始化”而随意删除配置文件或插件数据目录**，否则可能丢失累计榜和待处理记录。
@@ -171,6 +173,46 @@
 机器人自身 QQ 会通过 OneBot 事件自动识别，无需单独填写。**同一个 AstrBot 连接多个 QQ 账号时，当前实现优先绑定最先产生有效事件的账号**，暂未提供多账号选择器。
 
 </details>
+
+## 💞 QQ 资料卡自动回赞
+
+这是与**QQ 空间说说自动点赞**完全不同的功能。有人给 Bot 的**QQ 个人资料卡片**点赞时，SnowLuma / OneBot 会发送 `notice/notify/profile_like` 通知。Airi Core 根据通知中的点赞人 `operator_id`，调用 `send_like` 给对方资料卡回赞。
+
+> [!NOTE]
+> **默认关闭**，不会主动扫描陌生人的资料卡，也不会给说说、消息表情或群戳一戳自动回赞。功能依赖上游正确上报 `profile_like` 通知；如果 SnowLuma 版本没有提供该通知，插件不会自动收到点赞事件。
+
+### 开启方式
+
+进入 **AstrBot → Airi 核心工具🌸 → 配置 → 资料卡自动回赞**，开启“收到资料卡点赞后自动回赞”，再保存设置并按面板提示重载插件。
+
+| 配置项 | 默认值 | 说明 |
+| :--- | :---: | :--- |
+| `profile_like_auto_reply_enabled` | `false` | 是否启用自动回赞 |
+| `profile_like_reply_times` | `1` | 每条符合条件的通知回赞次数，范围 1–10 |
+| `profile_like_daily_limit` | `10` | 每位点赞人每日最多自动回赞次数，最高 10 |
+| `profile_like_cooldown_sec` | `120` | 同一人两次回赞之间的冷却时间（秒），最低 30 |
+
+### 处理流程与安全措施
+
+```text
+对方点赞 Bot 的 QQ 资料卡
+            ↓
+SnowLuma 上报 profile_like 通知
+            ↓
+检查点赞人、Bot 身份和通知时间
+            ↓
+去重 / 冷却 / 每日回赞次数限制
+            ↓
+先保存本次尝试，防止重启重复点赞
+            ↓
+通过 OneBot send_like 给对方资料卡回赞
+```
+
+- **默认每条有效通知回 1 个赞**；`times` 表示对方在通知中的点赞次数，插件不会默认无上限地镜像。
+- 同一人短时间内重复点赞或上游重复上报时，冷却与事件去重会避免连续发送；每日限额按服务器本地日期计算。
+- 对机器人自身、格式不完整或过期的通知不回赞；`send_like` 失败会留下记录，不因未知网络状态盲目重试。
+- 处理状态保存在 `data/plugin_data/astrbot_plugin_airi_core/profile_like_replies.json`，支持重启防重，不保存点赞人昵称或聊天内容。
+- 需要 QQ / OneBot 接入端支持 `send_like`；对非好友或受限账号，QQ 端可能拒绝操作。插件不会绕过限制。
 
 ## 💗 QQ 空间点赞如何工作？
 
@@ -239,6 +281,7 @@ AstrBot/data/plugin_data/astrbot_plugin_airi_core/
 ├── poke_stats.json             # Poke 日榜与历史累计数据
 ├── pending_requests.json       # 待审批申请和邀请
 ├── qzone_auto_like.json        # 空间索引、处理状态与待点赞队列
+├── profile_like_replies.json   # 资料卡回赞去重、冷却与每日计数
 ├── avatar_cache/               # QQ 用户头像缓存
 └── group_avatar_cache/         # QQ 群头像缓存
 ```
@@ -298,6 +341,7 @@ sudo apt install -y fonts-noto-cjk
 
 | 版本 | 重点改进 |
 | :--- | :--- |
+| **v1.3.20** | 新增资料卡自动回赞，支持重复通知去重、冷却和每日上限 |
 | **v1.3.19** | 安全修复旧版本热重载中断导致的空间漏赞记录 |
 | **v1.3.18** | 新增跨扫描、跨重启的持久化待点赞队列 |
 | **v1.3.17** | 根据说说发布时间识别新动态，减少首次扫描漏赞 |
