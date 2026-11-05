@@ -119,6 +119,37 @@
       }
     }
   },
+  "profile_like_settings": {
+    "type": "object",
+    "description": "资料卡自动回赞",
+    "hint": "有人给机器人 QQ 资料卡点赞时，可自动给对方回赞；与 QQ 空间说说点赞无关，默认关闭。",
+    "items": {
+      "profile_like_auto_reply_enabled": {
+        "type": "bool",
+        "description": "收到资料卡点赞后自动回赞",
+        "hint": "默认关闭。仅收到 OneBot notify/profile_like 通知时触发，不主动扫描任何用户；SnowLuma 需支持上报此通知。",
+        "default": false
+      },
+      "profile_like_reply_times": {
+        "type": "int",
+        "description": "每次回赞的次数",
+        "hint": "每条有效通知回赞 1～10 次，默认 1；不会按通知中的累计次数无限回赞。",
+        "default": 1
+      },
+      "profile_like_daily_limit": {
+        "type": "int",
+        "description": "对同一人每日最多回赞次数",
+        "hint": "默认 10，硬上限 10；按服务器本地日期归零，防止触发 QQ 赞数上限。",
+        "default": 10
+      },
+      "profile_like_cooldown_sec": {
+        "type": "int",
+        "description": "同一人回赞冷却时间（秒）",
+        "hint": "默认 120 秒，最低 30 秒；用于防止重复通知、双方自动回赞造成的连续触发。",
+        "default": 120
+      }
+    }
+  },
   "qzone_settings": {
     "type": "object",
     "description": "QQ 空间自动点赞",

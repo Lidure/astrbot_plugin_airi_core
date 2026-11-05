@@ -22,7 +22,7 @@ class GroupedConfigTests(unittest.TestCase):
     def setUpClass(cls):
         cls.schema = json.loads((ROOT / "_conf_schema.json").read_text("utf-8"))
 
-    def test_schema_groups_visible_in_six_sections(self):
+    def test_schema_groups_visible_in_seven_sections(self):
         groups = {
             k: v for k, v in self.schema.items()
             if v.get("type") == "object" and not v.get("invisible")
@@ -30,8 +30,14 @@ class GroupedConfigTests(unittest.TestCase):
         self.assertEqual(
             list(groups),
             ["chat_settings", "moderation_settings", "welcome_settings",
-             "request_settings", "poke_settings", "qzone_settings"],
+             "request_settings", "poke_settings", "profile_like_settings", "qzone_settings"],
         )
+        profile = groups["profile_like_settings"]["items"]
+        self.assertEqual(list(profile), [
+            "profile_like_auto_reply_enabled", "profile_like_reply_times",
+            "profile_like_daily_limit", "profile_like_cooldown_sec",
+        ])
+        self.assertFalse(profile["profile_like_auto_reply_enabled"]["default"])
         qzone = groups["qzone_settings"]["items"]
         self.assertEqual(
             list(qzone),
