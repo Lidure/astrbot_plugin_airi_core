@@ -6,7 +6,6 @@ notify/profile_like event and never polls or proactively likes strangers.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import os
 import time
@@ -20,7 +19,7 @@ def parse_profile_like_notice(raw: Any, *, self_id: str = "") -> tuple[str, str,
 
     SnowLuma/NapCat emit operator_id (not user_id) on profile_like notices.
     Reject own likes and malformed/unrelated events. The event's times is
-    advisory; the configured reply amount is a separate, bounded setting.
+    advisory and does not control the amount of the one-shot reply.
     """
     if not isinstance(raw, dict):
         return None
@@ -47,43 +46,43 @@ def parse_profile_like_notice(raw: Any, *, self_id: str = "") -> tuple[str, str,
 
 
 class ProfileLikeReturner:
-    """Rate-limited, restart-safe automatic profile-card reciprocity.
+    """Once per bot/liker/local day, try to fill QQ's profile-card like quota.
 
-    One event results in one configurable send_like call. Reserve the attempt
-    on disk *before* the API call to avoid duplicate likes on hot reload.
-    There is deliberately no unbounded retry after an ambiguous API result.
+    Other QQ plugins commonly attempt up to 50 likes in five send_like calls
+    of 10 each. This is a single operation triggered by the first eligible
+    notice that day, *not* a cooldown or a repeated background task.
+
+    QQ may enforce a lower actual daily allowance or reject a request.
+    Stop on the first rejection; do not claim that 50 were applied.
     """
+
+    LIKE_BATCHES = (10, 10, 10, 10, 10)
 
     def __init__(
         self,
         path: Path,
         *,
         enabled: bool = False,
-        reply_times: int = 1,
-        daily_limit: int = 10,
-        cooldown_sec: int = 120,
         logger: Any = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.path = Path(path)
         self.enabled = bool(enabled)
-        self.reply_times = max(1, min(10, int(reply_times)))
-        self.daily_limit = max(1, min(10, int(daily_limit)))
-        self.cooldown_sec = max(30, min(86400, int(cooldown_sec)))
         self.logger = logger
         self.clock = clock
         self._lock = asyncio.Lock()
         self._state = self._load()
 
     def _load(self) -> dict:
+        """Keep v1.3.20 per-user entries as already attempted for the day."""
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
             accounts = data.get("accounts") if isinstance(data, dict) else None
             if isinstance(accounts, dict):
-                return {"version": 1, "accounts": accounts}
+                return {"version": 2, "accounts": accounts}
         except (OSError, ValueError, TypeError):
             pass
-        return {"version": 1, "accounts": {}}
+        return {"version": 2, "accounts": {}}
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -105,6 +104,8 @@ class ProfileLikeReturner:
 
     @staticmethod
     def _api_succeeded(result: Any) -> bool:
+        if result is False:
+            return False
         if isinstance(result, dict):
             if result.get("status") == "failed":
                 return False
@@ -114,6 +115,15 @@ class ProfileLikeReturner:
                 return False
         return True
 
+    @staticmethod
+    def _is_quota_error(reason: Any) -> bool:
+        text = str(reason or "").lower()
+        return (
+            "点赞数已达上限" in text
+            or "今日点赞" in text and "上限" in text
+            or "like limit" in text
+        )
+
     async def handle_notice(
         self,
         raw: Any,
@@ -121,75 +131,69 @@ class ProfileLikeReturner:
         *,
         self_id: str = "",
     ) -> str:
-        """Process a genuine notification, return a diagnostic status string."""
+        """Handle one notification; all batches belong to this single event."""
         if not self.enabled:
             return "disabled"
         parsed = parse_profile_like_notice(raw, self_id=self_id)
         if parsed is None:
             return "ignored"
-        bot, operator, event_time, count = parsed
+        bot, operator, event_time, _ = parsed
         now = self.clock()
-        # Do not reply to a stale replayed notice after reconnection.
+        # Ignore stale or future events after connection replay.
         if event_time and (event_time > now + 300 or now - event_time > 3600):
             return "stale"
-        date = datetime.fromtimestamp(now).date().isoformat()
-        fingerprint = hashlib.sha256(
-            f"{bot}|{operator}|{event_time}|{count}".encode("ascii")
-        ).hexdigest()
+        day = datetime.fromtimestamp(now).date().isoformat()
+        if event_time and datetime.fromtimestamp(event_time).date().isoformat() != day:
+            # An event from before midnight must not consume tomorrow's quota.
+            return "stale"
         async with self._lock:
             account = self._state["accounts"].setdefault(
-                bot, {"date": date, "users": {}, "events": {}}
+                bot, {"date": day, "users": {}}
             )
-            if account.get("date") != date:
-                account["date"] = date
+            if account.get("date") != day:
+                account["date"] = day
                 account["users"] = {}
-            events = account.setdefault("events", {})
-            if not isinstance(events, dict):
-                events = {}
-                account["events"] = events
-            # Keep recent event fingerprints across local midnight/restarts.
-            for key, stamp in list(events.items()):
-                try:
-                    outdated = now - float(stamp) > 172800
-                except (ValueError, TypeError, OverflowError):
-                    outdated = True
-                if outdated:
-                    events.pop(key, None)
-            if len(events) > 5000:
-                for key, _ in sorted(events.items(), key=lambda x: x[1])[:1000]:
-                    events.pop(key, None)
-            if fingerprint in events:
-                return "duplicate"
-
+            # Old versions kept an extra event-fingerprint cache. Day-based
+            # once-only replies supersede it; remove it on save.
+            account.pop("events", None)
             users = account.setdefault("users", {})
             if not isinstance(users, dict):
                 users = {}
                 account["users"] = users
-            user = users.setdefault(operator, {"attempted": 0, "last_at": 0.0})
-            try:
-                attempts = max(0, int(user.get("attempted", 0)))
-                last_at = float(user.get("last_at", 0))
-            except (ValueError, TypeError, OverflowError):
-                attempts, last_at = 0, 0.0
-            if last_at > 0 and now - last_at < self.cooldown_sec:
-                return "cooldown"
-            remaining = self.daily_limit - attempts
-            if remaining <= 0:
-                return "daily_limit"
-            times = min(self.reply_times, remaining)
-            # The durable reservation is intentional: never resend the same
-            # event if AstrBot hot-reloads during an in-flight send_like.
-            events[fingerprint] = now
-            user["attempted"] = attempts + times
-            user["last_at"] = now
+            if operator in users:
+                return "already_done"
+
+            # Write BEFORE the first API request. A timeout, reload, or
+            # half-finished five-batch run must not trigger a second round.
+            users[operator] = {
+                "at": now, "submitted": 0, "status": "processing",
+            }
             self._save()
-            try:
-                response = await send_like(int(operator), times)
-            except Exception as exc:
-                self._log("warning", f"资料卡回赞请求失败：{type(exc).__name__}；本事件不重复提交")
-                return "failed"
-            if not self._api_succeeded(response):
-                self._log("warning", "资料卡回赞接口返回失败；本事件不重复提交")
-                return "failed"
-            self._log("info", f"收到资料卡点赞，已回赞 {times} 次（今日该用户已尝试 {attempts + times} 次）")
-            return "sent"
+
+            submitted = 0
+            outcome = "sent"
+            for times in self.LIKE_BATCHES:
+                try:
+                    response = await send_like(int(operator), times)
+                except Exception as exc:
+                    outcome = "limit" if self._is_quota_error(exc) else "failed"
+                    self._log("warning",
+                              f"资料卡回赞中断（{type(exc).__name__}）；"
+                              f"本次已提交 {submitted} 个赞，今日不重复执行")
+                    break
+                if not self._api_succeeded(response):
+                    reason = response.get("wording") or response.get("message") if isinstance(response, dict) else response
+                    outcome = "limit" if self._is_quota_error(reason) else "failed"
+                    self._log("warning",
+                              f"资料卡回赞收到失败回执；本次已提交 {submitted} 个赞，"
+                              "今日不重复执行")
+                    break
+                submitted += times
+                users[operator]["submitted"] = submitted
+                self._save()
+
+            users[operator]["status"] = outcome
+            self._save()
+            if outcome == "sent":
+                self._log("info", "收到资料卡点赞，已提交最多 50 个回赞（实际数量以 QQ 为准）")
+            return outcome

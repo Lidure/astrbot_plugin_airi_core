@@ -2,7 +2,7 @@ import json
 import unittest
 from pathlib import Path
 
-from config_sections import MIGRATION_KEY, migrate, option
+from config_sections import MIGRATION_KEY, PATHS, migrate, option
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,11 +33,11 @@ class GroupedConfigTests(unittest.TestCase):
              "request_settings", "poke_settings", "profile_like_settings", "qzone_settings"],
         )
         profile = groups["profile_like_settings"]["items"]
-        self.assertEqual(list(profile), [
-            "profile_like_auto_reply_enabled", "profile_like_reply_times",
-            "profile_like_daily_limit", "profile_like_cooldown_sec",
-        ])
+        self.assertEqual(list(profile), ["profile_like_auto_reply_enabled"])
         self.assertFalse(profile["profile_like_auto_reply_enabled"]["default"])
+        for obsolete in ("profile_like_reply_times", "profile_like_daily_limit",
+                         "profile_like_cooldown_sec"):
+            self.assertNotIn(obsolete, self.schema["profile_like_settings"]["items"])
         qzone = groups["qzone_settings"]["items"]
         self.assertEqual(
             list(qzone),
@@ -50,6 +50,9 @@ class GroupedConfigTests(unittest.TestCase):
     def test_flat_settings_remain_invisible_for_upgrade_only(self):
         self.assertTrue(self.schema["poke_stats_enabled"]["invisible"])
         self.assertTrue(self.schema["qzone_auto_like_enabled"]["invisible"])
+        self.assertNotIn("profile_like_reply_times", self.schema)
+        self.assertNotIn("profile_like_daily_limit", self.schema)
+        self.assertNotIn("profile_like_cooldown_sec", self.schema)
         self.assertTrue(self.schema[MIGRATION_KEY]["invisible"])
 
     def test_migrate_existing_custom_values_and_persist(self):
@@ -71,6 +74,21 @@ class GroupedConfigTests(unittest.TestCase):
         self.assertEqual(conf.save_count, 1)
         self.assertFalse(migrate(conf))
         self.assertEqual(conf.save_count, 1)
+
+    def test_profile_auto_reply_uses_single_switch_and_ignores_old_knobs(self):
+        conf = {
+            "profile_like_settings": {
+                "profile_like_auto_reply_enabled": True,
+                "profile_like_reply_times": 1,
+                "profile_like_daily_limit": 1,
+                "profile_like_cooldown_sec": 86400,
+            }
+        }
+        migrate(conf)
+        self.assertTrue(option(conf, "profile_like_auto_reply_enabled"))
+        for obsolete in ("profile_like_reply_times", "profile_like_daily_limit",
+                         "profile_like_cooldown_sec"):
+            self.assertNotIn(obsolete, PATHS)
 
     def test_new_install_uses_single_qzone_master_switch(self):
         conf = {}

@@ -312,9 +312,6 @@ class Main(Star):
             self._plugin_data_dir / "profile_like_replies.json",
             logger=logger,
             enabled=bool(option(self.config, "profile_like_auto_reply_enabled", False)),
-            reply_times=_coerce_int(option(self.config, "profile_like_reply_times"), 1),
-            daily_limit=_coerce_int(option(self.config, "profile_like_daily_limit"), 10),
-            cooldown_sec=_coerce_int(option(self.config, "profile_like_cooldown_sec"), 120),
         )
         self.qzone_owner_qq = str(option(self.config, "qzone_owner_qq", "") or "").strip()
         self._qzone_liker = QzoneAutoLike(
