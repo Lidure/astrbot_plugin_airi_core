@@ -96,7 +96,7 @@ class ProfileLikeReturnerTests(unittest.IsolatedAsyncioTestCase):
         user = state["accounts"]["99887766"]["users"]["11223344"]
         self.assertEqual(user["submitted"], 50)
         self.assertEqual(user["status"], "sent")
-        self.assertEqual(state["version"], 2)
+        self.assertEqual(state["version"], 3)
         self.assertNotIn("operator_nick", self.path.read_text(encoding="utf-8"))
 
     async def test_incoming_multiple_likes_do_not_change_batch_size(self):
@@ -251,6 +251,137 @@ class ProfileLikeReturnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await liker.handle_notice(n2, self.send), "stale")
         self.assertEqual(self.sent, [])
         self.assertFalse(self.path.exists())
+
+
+
+class FakeProfileBot:
+    def __init__(self):
+        self.voters = []
+        self.calls = []
+        self.fail_reads = False
+
+    async def call_action(self, action, **kwargs):
+        self.calls.append((action, kwargs))
+        if action == "get_profile_like":
+            if self.fail_reads:
+                raise RuntimeError("upstream temporarily unavailable")
+            return {"status": "ok", "retcode": 0, "data": {
+                "voteInfo": {"userInfos": list(self.voters)},
+                "favoriteInfo": {"userInfos": [
+                    {"uin": 99988877, "latestTime": 1793842200, "count": 50}
+                ]},
+            }}
+        if action == "send_like":
+            return {"status": "ok", "retcode": 0, "data": None}
+        raise AssertionError("unsupported action " + action)
+
+
+class ProfileLikePollTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name) / "profile_like_replies.json"
+        self.clock = FakeClock()
+        self.bot = FakeProfileBot()
+        self.liker = ProfileLikeReturner(self.path, enabled=True, clock=self.clock)
+        self.liker._bot = self.bot
+        self.liker._self_qq = "99887766"
+
+    def add_vote(self, uin, seconds_ago=50, count=1):
+        self.bot.voters.append({
+            "uin": uin,
+            "latestTime": int(self.clock() - seconds_ago),
+            "count": count,
+        })
+
+    def like_calls(self):
+        return [v for v in self.bot.calls if v[0] == "send_like"]
+
+    async def test_real_profile_vote_info_is_discovered_and_liked(self):
+        self.add_vote(11223344, seconds_ago=120, count=10)
+        summary = await self.liker.poll_once()
+        self.assertEqual(summary["candidates"], 1)
+        self.assertEqual(summary["sent"], 1)
+        self.assertEqual(len(self.like_calls()), 5)
+        self.assertEqual(
+            [v[1]["times"] for v in self.like_calls()],
+            [10] * 5,
+        )
+        get = next(v for v in self.bot.calls if v[0] == "get_profile_like")
+        self.assertEqual(get[1]["user_id"], 99887766)
+        self.assertEqual(get[1]["count"], 100)
+        self.assertEqual(self.liker._state["polls"]["99887766"], self.clock())
+
+    async def test_first_scan_does_not_like_older_history_or_favorites(self):
+        self.add_vote(11223344, seconds_ago=3600)
+        summary = await self.liker.poll_once()
+        self.assertEqual(summary["candidates"], 0)
+        self.assertEqual(self.like_calls(), [])
+        self.assertFalse(
+            "99988877" in self.liker._state["accounts"].get("99887766", {}).get("users", {})
+        )
+
+    async def test_new_like_after_baseline_and_delayed_backend_index(self):
+        self.assertEqual((await self.liker.poll_once())["sent"], 0)
+        self.clock.advance(95)
+        # QQ reports a like from before the last cursor, but within overlap.
+        self.add_vote(11223344, seconds_ago=115)
+        summary = await self.liker.poll_once()
+        self.assertEqual(summary["sent"], 1)
+        self.assertEqual(len(self.like_calls()), 5)
+
+    async def test_repeated_polls_do_not_duplicate_any_like(self):
+        self.add_vote(11223344, seconds_ago=80)
+        await self.liker.poll_once()
+        self.clock.advance(90)
+        summary = await self.liker.poll_once()
+        self.assertEqual(summary["already_done"], 1)
+        self.assertEqual(len(self.like_calls()), 5)
+
+    async def test_failure_does_not_advance_watermark(self):
+        self.bot.fail_reads = True
+        self.add_vote(11223344, seconds_ago=120)
+        self.assertEqual((await self.liker.poll_once())["sent"], 0)
+        self.assertNotIn("99887766", self.liker._state["polls"])
+        self.bot.fail_reads = False
+        self.assertEqual((await self.liker.poll_once())["sent"], 1)
+
+    async def test_poll_watermark_and_daily_dedupe_survive_restart(self):
+        self.add_vote(11223344, seconds_ago=100)
+        await self.liker.poll_once()
+        new = ProfileLikeReturner(self.path, enabled=True, clock=self.clock)
+        new._bot = self.bot
+        new._self_qq = "99887766"
+        self.clock.advance(100)
+        self.add_vote(22334455, seconds_ago=40)
+        stats = await new.poll_once()
+        self.assertEqual(stats["sent"], 1)
+        self.assertEqual(len(self.like_calls()), 10)
+
+    async def test_notification_and_poll_share_one_dedupe_state(self):
+        self.add_vote(11223344, seconds_ago=20)
+        event = notice(self.clock, operator="11223344", times=1)
+        async def post(uid, times):
+            return await self.bot.call_action("send_like", user_id=uid, times=times)
+        response, stats = await asyncio.gather(
+            self.liker.handle_notice(event, post),
+            self.liker.poll_once(),
+        )
+        self.assertIn(response, ("already_done", "sent"))
+        self.assertIn(stats["sent"], (0, 1))
+        self.assertEqual(len(self.like_calls()), 5)
+
+    async def test_attach_starts_poll_worker_and_close_stops_it(self):
+        self.add_vote(11223344, seconds_ago=30)
+        self.liker._bot = None
+        self.liker._self_qq = ""
+        self.assertTrue(self.liker.attach_bot(self.bot, "99887766"))
+        self.assertFalse(self.liker.attach_bot(self.bot, "12345678"))
+        await asyncio.sleep(0.03)
+        self.assertEqual(len(self.like_calls()), 5)
+        await self.liker.close()
+        self.assertIsNone(self.liker._bot)
+
 
 
 if __name__ == "__main__":
