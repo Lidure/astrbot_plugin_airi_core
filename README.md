@@ -10,7 +10,7 @@
 
 <p>
   <a href="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml"><img src="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml/badge.svg" alt="Tests" /></a>
-  <img src="https://img.shields.io/badge/version-v1.3.21-f08aab?style=flat" alt="Version v1.3.21" />
+  <img src="https://img.shields.io/badge/version-v1.3.22-f08aab?style=flat" alt="Version v1.3.22" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.12-5575ad?style=flat" alt="Python 3.10 / 3.12 CI" />
   <img src="https://img.shields.io/badge/AstrBot-Plugin-805ad5?style=flat" alt="AstrBot Plugin" />
   <img src="https://img.shields.io/badge/OneBot-v11-49a6a6?style=flat" alt="OneBot v11" />
@@ -176,7 +176,7 @@
 
 ## 💞 QQ 资料卡自动回赞
 
-有人给 Bot 的 **QQ 个人资料卡**点赞时，插件通过 SnowLuma / OneBot 的 `notify/profile_like` 通知取得点赞人，并调用 `send_like` 对其资料卡回赞。**与 QQ 空间说说点赞完全独立。**
+有人给 Bot 的 **QQ 个人资料卡**点赞时，插件会优先监听 SnowLuma / OneBot 的 `notify/profile_like` 通知；如果接入端没有推送通知，还会通过 **`get_profile_like` 只读接口每约 90 秒补查**最近的点赞人，再使用 `send_like` 回赞。**与 QQ 空间说说点赞完全独立。**
 
 > [!TIP]
 > 回赞采用 **「当天第一次收到通知 → 一轮尽量点满 → 当天不再重复」** 的方式，不设人为的冷却间隔，也不需要配置点赞次数。
@@ -192,7 +192,7 @@
 ### 实际运行过程
 
 ```text
-收到来自某位用户的 profile_like 通知
+收到 profile_like 通知 / 90 秒补查新增资料卡赞
                   │
                   ▼
        今天是否已处理过这位用户？
@@ -218,7 +218,9 @@
 - QQ 实际允许数量会受账号权限、好友关系、当天余额和平台策略影响；**最多尝试 50 不代表一定成功收到 50 个赞**。
 - 若已经达到 QQ 限额，或某批接口返回错误，会立即结束本轮；当天不因新通知重试，避免刷赞或重复操作。
 - 按 **机器人 QQ + 点赞人 QQ + 服务器本地日期** 去重，AstrBot 重载、重启后也不会重复回赞；即使中途崩溃也不会从头再刷。
-- 自动回赞依赖上游真正上报 `profile_like` 通知；不会主动扫描其他资料卡，也不会把空间动态赞、消息表情赞、Poke 当成资料卡赞。
+- **双通道触发**：接收 `profile_like` 通知；当 SnowLuma 不上报此事件时，定期调用只读 `get_profile_like` 读取 **机器人自身资料卡** 的近期点赞记录。两路共享每日去重记录，不会因此多回赞。
+- 首次补查仅回看最近 **15 分钟** 的点赞；以后使用持久化检查时间和 **5 分钟重叠窗口** 防止接口延迟漏检。不会对很久以前的历史点赞批量回赞。
+- 补查复用 AstrBot 当前 OneBot 会话，会在收到机器人消息/事件、捕获到 OneBot 对象后开始；不需要额外填写机器人 QQ 或密钥。无法调用接口时会记录警告，并在后续周期再次检查。不会把空间动态赞、消息表情赞、Poke 当作资料卡赞。
 - 状态保存在 `data/plugin_data/astrbot_plugin_airi_core/profile_like_replies.json`，沿用旧版文件，不保存点赞人昵称、聊天内容或 Cookie。
 
 ## 💗 QQ 空间点赞如何工作？
@@ -348,6 +350,7 @@ sudo apt install -y fonts-noto-cjk
 
 | 版本 | 重点改进 |
 | :--- | :--- |
+| **v1.3.22** | 资料卡回赞增加每 90 秒只读补查，解决点赞通知未上报导致的漏赞 |
 | **v1.3.21** | 简化资料卡回赞：当天一次尽量点满，移除次数与冷却配置 |
 | **v1.3.20** | 新增资料卡自动回赞及跨重启去重能力 |
 | **v1.3.19** | 安全修复旧版本热重载中断导致的空间漏赞记录 |
