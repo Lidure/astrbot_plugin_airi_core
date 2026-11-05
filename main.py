@@ -344,13 +344,14 @@ class Main(Star):
             f" | 审批QQ: {self.request_approval_qq or '未配置'}"
             f" | Poke统计: {'启用' if self.poke_stats_enabled else '未启用'}"
             f" | Poke排行上限: {self.poke_rank_max_limit} 人"
-            f" | 资料卡自动回赞: {'启用' if self._profile_like_reply.enabled else '关闭'}"
+            f" | 资料卡自动回赞: {'启用（事件通知 + 90秒补查）' if self._profile_like_reply.enabled else '关闭'}"
             f" | 空间自动点赞: {'启用' if self._qzone_liker.enabled else '关闭'}"
             f" / {'只读测试' if self._qzone_liker.dry_run else '实际点赞'}"
             " | Poke日榜切日: 04:00"
         )
 
     async def terminate(self):
+        await self._profile_like_reply.close()
         await self._qzone_liker.close()
 
     def _get_plugin_data_dir(self) -> Path:
@@ -759,12 +760,13 @@ class Main(Star):
 
     @filter.platform_adapter_type("aiocqhttp")
     async def on_qzone_capture(self, event: AstrMessageEvent):
-        """捕获当前 SnowLuma / OneBot 客户端，按需开启后台任务。"""
-        if not self._qzone_liker.enabled:
-            return
-        self._qzone_liker.attach_bot(
-            getattr(event, "bot", None), str(event.get_self_id() or "")
-        )
+        """从 OneBot 消息捕获账号，同时按需启动空间和资料卡任务。"""
+        bot = getattr(event, "bot", None)
+        self_qq = str(event.get_self_id() or "")
+        if self._profile_like_reply.enabled:
+            self._profile_like_reply.attach_bot(bot, self_qq)
+        if self._qzone_liker.enabled:
+            self._qzone_liker.attach_bot(bot, self_qq)
 
     @filter.platform_adapter_type("aiocqhttp")
     @filter.command("空间点赞")
@@ -992,6 +994,9 @@ class Main(Star):
             )
             if from_like:
                 bot = getattr(event, "bot", None)
+                self._profile_like_reply.attach_bot(
+                    bot, str(event.get_self_id() or "")
+                )
                 action = resolve_onebot_call_action(event)
 
                 async def _send_profile_like(user_id: int, times: int):

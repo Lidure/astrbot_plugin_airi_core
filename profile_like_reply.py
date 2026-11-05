@@ -1,7 +1,8 @@
 """Reply to incoming QQ profile-card likes via the OneBot v11 send_like action.
 
-This module is independent of QQ Zone likes. It only reacts to a verified
-notify/profile_like event and never polls or proactively likes strangers.
+This module is independent of QQ Zone likes. It responds to OneBot
+notify/profile_like events and also polls the read-only get_profile_like API
+because some SnowLuma builds do not forward this push notification.
 """
 from __future__ import annotations
 
@@ -71,7 +72,12 @@ class ProfileLikeReturner:
         self.logger = logger
         self.clock = clock
         self._lock = asyncio.Lock()
+        self._poll_lock = asyncio.Lock()
         self._state = self._load()
+        self._bot: Any = None
+        self._self_qq: str = ""
+        self._poll_task: asyncio.Task | None = None
+        self._poll_interval = 90
 
     def _load(self) -> dict:
         """Keep v1.3.20 per-user entries as already attempted for the day."""
@@ -79,10 +85,15 @@ class ProfileLikeReturner:
             data = json.loads(self.path.read_text(encoding="utf-8"))
             accounts = data.get("accounts") if isinstance(data, dict) else None
             if isinstance(accounts, dict):
-                return {"version": 2, "accounts": accounts}
+                polls = data.get("polls")
+                return {
+                    "version": 3,
+                    "accounts": accounts,
+                    "polls": polls if isinstance(polls, dict) else {},
+                }
         except (OSError, ValueError, TypeError):
             pass
-        return {"version": 2, "accounts": {}}
+        return {"version": 3, "accounts": {}, "polls": {}}
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -130,6 +141,7 @@ class ProfileLikeReturner:
         send_like: Callable[[int, int], Awaitable[Any]],
         *,
         self_id: str = "",
+        source: str = "notice",
     ) -> str:
         """Handle one notification; all batches belong to this single event."""
         if not self.enabled:
@@ -140,7 +152,8 @@ class ProfileLikeReturner:
         bot, operator, event_time, _ = parsed
         now = self.clock()
         # Ignore stale or future events after connection replay.
-        if event_time and (event_time > now + 300 or now - event_time > 3600):
+        max_age = 86400 if source == "poll" else 3600
+        if event_time and (event_time > now + 300 or now - event_time > max_age):
             return "stale"
         day = datetime.fromtimestamp(now).date().isoformat()
         if event_time and datetime.fromtimestamp(event_time).date().isoformat() != day:
@@ -197,3 +210,158 @@ class ProfileLikeReturner:
             if outcome == "sent":
                 self._log("info", "收到资料卡点赞，已提交最多 50 个回赞（实际数量以 QQ 为准）")
             return outcome
+
+    def attach_bot(self, bot: Any, self_qq: str) -> bool:
+        """Capture the OneBot session from normal incoming events.
+
+        No extra QQ account or password is configured. Never attach to a
+        different bot ID after this instance has been bound.
+        """
+        if not self.enabled or bot is None:
+            return False
+        qq = str(self_qq or "").strip()
+        if not qq.isdecimal() or int(qq) == 0:
+            return False
+        if self._self_qq and self._self_qq != qq:
+            return False
+        self._self_qq = qq
+        self._bot = bot
+        if self._poll_task is None or self._poll_task.done():
+            self._poll_task = asyncio.create_task(self._poll_worker())
+            self._log("info", "资料卡回赞补充扫描已启动（每90秒）")
+        return True
+
+    async def close(self) -> None:
+        task = self._poll_task
+        self._poll_task = None
+        self._bot = None
+        if task and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    async def _call_bot(self, action: str, **kwargs: Any) -> Any:
+        bot = self._bot
+        if bot is None:
+            raise RuntimeError("OneBot 尚未连接")
+        method = getattr(bot, action, None)
+        if callable(method):
+            reply = await method(**kwargs)
+        else:
+            callback = getattr(bot, "call_action", None)
+            if not callable(callback):
+                raise RuntimeError("OneBot 未提供 " + action)
+            reply = await callback(action, **kwargs)
+        if isinstance(reply, dict):
+            if reply.get("status") == "failed" or reply.get("retcode", 0) not in (0, None):
+                raise RuntimeError("OneBot " + action + " 返回失败")
+            return reply.get("data", reply)
+        return reply
+
+    @staticmethod
+    def _recent_voters(data: Any) -> list[tuple[str, int, int]]:
+        """Only actual votes on the bot's *profile*, not favorites or posts."""
+        if not isinstance(data, dict):
+            raise ValueError("资料卡点赞查询结果不是对象")
+        info = data.get("voteInfo")
+        if not isinstance(info, dict) or not isinstance(info.get("userInfos"), list):
+            raise ValueError("资料卡点赞查询缺少 voteInfo.userInfos")
+        result: list[tuple[str, int, int]] = []
+        for user in info["userInfos"]:
+            if not isinstance(user, dict):
+                continue
+            qq = str(user.get("uin") or "").strip()
+            if not qq.isdecimal() or int(qq) == 0:
+                continue
+            try:
+                latest = int(user.get("latestTime") or 0)
+                count = int(user.get("count") or 1)
+            except (ValueError, TypeError, OverflowError):
+                continue
+            if latest > 0 and count > 0:
+                result.append((qq, latest, min(999, count)))
+        return result
+
+    async def poll_once(self) -> dict[str, int]:
+        """Read recent profile likers; invoke the same daily-deduped handler.
+
+        First successful scan looks back 15 minutes to recover a just-missed
+        notification. Later scans overlap by 5 minutes to handle API lag.
+        Cursor is advanced only after a successful read, and is persisted.
+        """
+        stats = {"candidates": 0, "sent": 0, "already_done": 0, "failed": 0}
+        if not self.enabled or not self._bot or not self._self_qq:
+            return stats
+        async with self._poll_lock:
+            now = self.clock()
+            old = self._state["polls"].get(self._self_qq)
+            try:
+                watermark = float(old) if old is not None else now - 900
+            except (ValueError, TypeError, OverflowError):
+                watermark = now - 900
+            cutoff = max(
+                watermark - (300 if old is not None else 0),
+                datetime.fromtimestamp(now).replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                ).timestamp(),
+            )
+            try:
+                data = await self._call_bot(
+                    "get_profile_like", user_id=int(self._self_qq),
+                    start=0, count=100,
+                )
+                voters = self._recent_voters(data)
+            except Exception as exc:
+                self._log(
+                    "warning",
+                    f"资料卡点赞读取失败：{type(exc).__name__}，稍后重查",
+                )
+                return stats
+            for operator, latest, times in sorted(voters, key=lambda x: x[1]):
+                if not (cutoff <= latest <= now + 300):
+                    continue
+                if operator == self._self_qq:
+                    continue
+                stats["candidates"] += 1
+                notice = {
+                    "post_type": "notice", "notice_type": "notify",
+                    "sub_type": "profile_like",
+                    "self_id": int(self._self_qq),
+                    "operator_id": int(operator),
+                    "time": latest, "times": times,
+                }
+                try:
+                    outcome = await self.handle_notice(
+                        notice,
+                        lambda uid, amount: self._call_bot(
+                            "send_like", user_id=uid, times=amount
+                        ),
+                        self_id=self._self_qq, source="poll",
+                    )
+                except Exception as exc:
+                    self._log("warning", f"资料卡补查处理异常：{type(exc).__name__}")
+                    stats["failed"] += 1
+                else:
+                    if outcome in stats:
+                        stats[outcome] += 1
+            self._state["polls"][self._self_qq] = now
+            self._save()
+            if stats["candidates"]:
+                self._log(
+                    "info",
+                    "资料卡补查：候选=%d 已回赞=%d 已处理跳过=%d 失败=%d"
+                    % (stats["candidates"], stats["sent"],
+                       stats["already_done"], stats["failed"]),
+                )
+            return stats
+
+    async def _poll_worker(self) -> None:
+        try:
+            while self.enabled and self._bot is not None:
+                await self.poll_once()
+                await asyncio.sleep(self._poll_interval)
+        except asyncio.CancelledError:
+            pass
+
