@@ -2,13 +2,56 @@
   "chat_settings": {
     "type": "object",
     "description": "AI 对话与互动",
-    "hint": "控制 @Bot 唤醒和 LLM 主动点名功能。",
+    "hint": "控制 @Bot 唤醒、关键词唤醒及 LLM 主动点名。",
     "items": {
       "self_mention_wakeup_enabled": {
         "type": "bool",
         "description": "启用 @Bot 唤醒 LLM",
         "hint": "开启后，在 QQ/OneBot 群聊中 @Bot 并附带消息内容时，会绕过 provider wake prefix，复用当前会话触发 LLM。不会额外注入 system prompt。",
         "default": true
+      },
+      "keyword_wakeup_enabled": {
+        "type": "bool",
+        "description": "启用群聊关键词唤醒 LLM",
+        "hint": "默认关闭。仅 QQ / OneBot 群聊生效。命中关键词后沿用当前会话请求 LLM；不改变 @Bot、私聊或普通命令行为。",
+        "default": false
+      },
+      "keyword_wakeup_words": {
+        "type": "list",
+        "description": "唤醒关键词（可添加多条）",
+        "hint": "每条填写一个关键词，例如 小浅子、Airi。默认忽略英文大小写；也接受逗号或换行分隔。空列表不会触发。",
+        "default": [],
+        "items": {
+          "type": "string"
+        }
+      },
+      "keyword_wakeup_mode": {
+        "type": "string",
+        "description": "关键词匹配方式",
+        "hint": "contains：聊天文本任意位置包含关键词；prefix：去掉消息开头空白后，以关键词开头才触发。例如关键词为「小浅子」，「今天小浅子在吗」仅包含模式触发。",
+        "options": [
+          "contains",
+          "prefix"
+        ],
+        "default": "contains"
+      },
+      "keyword_wakeup_group_whitelist": {
+        "type": "list",
+        "description": "生效 QQ 群白名单",
+        "hint": "填写允许关键词唤醒的 QQ 群号，一条一个。留空表示所有群可用；不影响 @Bot 或其他命令。",
+        "default": [],
+        "items": {
+          "type": "string"
+        }
+      },
+      "keyword_wakeup_user_whitelist": {
+        "type": "list",
+        "description": "允许唤醒的用户 QQ 白名单",
+        "hint": "可选，一条一个 QQ 号；留空表示群内所有人均可触发。群白名单与用户白名单同时设置时必须都满足。",
+        "default": [],
+        "items": {
+          "type": "string"
+        }
       },
       "mention_tool_enabled": {
         "type": "bool",
