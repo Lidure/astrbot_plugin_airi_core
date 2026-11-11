@@ -37,15 +37,14 @@ class MatchTests(unittest.TestCase):
         self.assertIsNone(match_keyword("／小浅子", words, "prefix"))
         self.assertIsNone(match_keyword("  ", words, "contains"))
 
-    def test_group_and_user_whitelist(self):
+    def test_group_allowlist_does_not_restrict_members_by_private_qq(self):
         groups = normalize_allowlist(["123456", " 999999 ", "123456"])
-        users = normalize_allowlist(["111", "222"])
-        self.assertTrue(allowed_group_sender("123456", "111", "999", groups, users))
-        self.assertFalse(allowed_group_sender("777777", "111", "999", groups, users))
-        self.assertFalse(allowed_group_sender("123456", "888", "999", groups, users))
-        self.assertFalse(allowed_group_sender(None, "111", "999", groups, users))
-        self.assertFalse(allowed_group_sender("123456", "999", "999", groups, users))
-        self.assertTrue(allowed_group_sender("123456", "888", "999", frozenset(), frozenset()))
+        self.assertTrue(allowed_group_sender("123456", "111", "999", groups))
+        self.assertTrue(allowed_group_sender("123456", "888", "999", groups))
+        self.assertFalse(allowed_group_sender("777777", "111", "999", groups))
+        self.assertFalse(allowed_group_sender(None, "111", "999", groups))
+        self.assertFalse(allowed_group_sender("123456", "999", "999", groups))
+        self.assertTrue(allowed_group_sender("123456", "888", "999", frozenset()))
 
     def test_private_allowlist_never_uses_group_allowlist(self):
         users = normalize_allowlist(["123", "456"])
@@ -62,6 +61,8 @@ class MatchTests(unittest.TestCase):
         self.assertFalse(fields["keyword_wakeup_private_enabled"]["default"])
         self.assertEqual(fields["keyword_wakeup_words"]["type"], "list")
         self.assertEqual(fields["keyword_wakeup_mode"]["options"], ["contains", "prefix"])
+        self.assertIn("群内任何成员", fields["keyword_wakeup_group_whitelist"]["hint"])
+        self.assertIn("仅限制QQ私聊", fields["keyword_wakeup_user_whitelist"]["hint"])
         for key in ("keyword_wakeup_group_whitelist", "keyword_wakeup_user_whitelist"):
             self.assertEqual(fields[key]["type"], "list")
             self.assertEqual(fields[key]["default"], [])
@@ -131,7 +132,7 @@ class FakePlugin:
         self.keyword_wakeup_words = words
         self.keyword_wakeup_mode = mode
         self.keyword_wakeup_group_whitelist = groups
-        self.keyword_wakeup_user_whitelist = users
+        self.keyword_wakeup_private_whitelist = users
         self.context = SimpleNamespace(conversation_manager=manager or FakeConversationManager())
 
 
@@ -229,7 +230,6 @@ class HandlerTests(unittest.TestCase):
             (FakePlugin(enabled=False), FakeEvent()),
             (FakePlugin(words=()), FakeEvent()),
             (FakePlugin(groups=frozenset({"555"})), FakeEvent()),
-            (FakePlugin(users=frozenset({"555"})), FakeEvent()),
             (FakePlugin(), FakeEvent(group=None)),
             (FakePlugin(), FakeEvent(sender="999")),
             (FakePlugin(), FakeEvent(woken=True)),
@@ -242,6 +242,20 @@ class HandlerTests(unittest.TestCase):
                 self.assertEqual(run_handler(plugin, event), [])
                 self.assertEqual(event.block_default_calls, 0)
                 self.assertEqual(event.requests, [])
+
+    def test_group_ignores_private_qq_allowlist_even_when_populated(self):
+        plugin = FakePlugin(enabled=True,
+                            groups=frozenset({"888"}),
+                            users=frozenset({"123"}))
+        other_member = FakeEvent(sender="456")
+        results = run_handler(plugin, other_member)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(other_member.block_default_calls, 1)
+        self.assertEqual(other_member.requests[0]["prompt"], "小浅子 在吗")
+
+        other_group = FakeEvent(group="333", sender="123")
+        self.assertEqual(run_handler(plugin, other_group), [])
+        self.assertEqual(other_group.block_default_calls, 0)
 
     def test_private_requires_independent_switch(self):
         # Native AstrBot marks ordinary QQ private chats as wake messages.
