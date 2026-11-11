@@ -21,6 +21,7 @@ if __package__:
     from .config_sections import migrate as migrate_settings, option
     from .keyword_wakeup import (
         allowed_group_sender,
+        allowed_private_sender,
         match_keyword,
         normalize_allowlist,
         normalize_keywords,
@@ -50,6 +51,7 @@ else:
     from config_sections import migrate as migrate_settings, option
     from keyword_wakeup import (
         allowed_group_sender,
+        allowed_private_sender,
         match_keyword,
         normalize_allowlist,
         normalize_keywords,
@@ -282,6 +284,9 @@ class Main(Star):
         self.keyword_wakeup_enabled = bool(
             option(self.config, "keyword_wakeup_enabled", False)
         )
+        self.keyword_wakeup_private_enabled = bool(
+            option(self.config, "keyword_wakeup_private_enabled", False)
+        )
         self.keyword_wakeup_words = normalize_keywords(
             option(self.config, "keyword_wakeup_words", [])
         )
@@ -364,7 +369,8 @@ class Main(Star):
     async def initialize(self):
         logger.info(
             f"Airi 核心工具已加载 | @唤醒: {'启用' if self.self_mention_wakeup_enabled else '未启用'}"
-            f" | 关键词唤醒: {'启用' if self.keyword_wakeup_enabled and self.keyword_wakeup_words else '未启用'}"
+            f" | 群关键词唤醒: {'启用' if self.keyword_wakeup_enabled and self.keyword_wakeup_words else '未启用'}"
+            f" | 私聊关键词唤醒: {'启用' if self.keyword_wakeup_private_enabled and self.keyword_wakeup_words else '未启用'}"
             f" ({self.keyword_wakeup_mode}, {len(self.keyword_wakeup_words)}词,"
             f" {len(self.keyword_wakeup_group_whitelist)}群白名单,"
             f" {len(self.keyword_wakeup_user_whitelist)}用户白名单)"
@@ -979,28 +985,42 @@ class Main(Star):
     @filter.platform_adapter_type("aiocqhttp")
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_keyword_wakeup(self, event: AstrMessageEvent):
-        """Wake the current conversation on a QQ group keyword without @Bot.
+        """Wake on configured QQ group/private keywords, retaining the LLM session.
 
-        Avoid preexisting native command/@ wakeups and bot-originated messages.
-        Only one explicitly generated LLM request is emitted per matched message.
+        Private chats may already be marked as native wakeups by AstrBot.
+        For a matched private keyword, explicitly request one response and
+        suppress the ordinary provider call. Nonmatches remain untouched.
         """
-        if not self.keyword_wakeup_enabled or not self.keyword_wakeup_words:
+        if not self.keyword_wakeup_words:
             return
 
-        message_obj = event.message_obj
-        group_id = getattr(message_obj, "group_id", None)
-        if not allowed_group_sender(
-            group_id,
-            event.get_sender_id(),
-            event.get_self_id(),
-            self.keyword_wakeup_group_whitelist,
-            self.keyword_wakeup_user_whitelist,
-        ):
-            return
+        is_private = event.is_private_chat()
+        if is_private:
+            if not self.keyword_wakeup_private_enabled:
+                return
+            if not allowed_private_sender(
+                event.get_sender_id(),
+                event.get_self_id(),
+                self.keyword_wakeup_user_whitelist,
+            ):
+                return
+        else:
+            if not self.keyword_wakeup_enabled:
+                return
+            if not allowed_group_sender(
+                getattr(event.message_obj, "group_id", None),
+                event.get_sender_id(),
+                event.get_self_id(),
+                self.keyword_wakeup_group_whitelist,
+                self.keyword_wakeup_user_whitelist,
+            ):
+                return
 
-        # If AstrBot already classified this as a command or native wakeup,
-        # let its normal pipeline handle it. Otherwise two replies may appear.
-        if getattr(event, "is_at_or_wake_command", False):
+        # AstrBot often sets is_at_or_wake_command=True for every private
+        # message. Only skip this flag in groups; otherwise private keywords
+        # would never be recognized. A private match suppresses the normal
+        # provider response below, preventing a duplicate LLM request.
+        if not is_private and getattr(event, "is_at_or_wake_command", False):
             return
 
         components = event.get_messages()
