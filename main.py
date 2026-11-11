@@ -19,6 +19,12 @@ if __package__:
     from .avatar_rank_renderer import render_poke_rank_image
     from .friend_requests import resolve_onebot_call_action
     from .config_sections import migrate as migrate_settings, option
+    from .keyword_wakeup import (
+        allowed_group_sender,
+        match_keyword,
+        normalize_allowlist,
+        normalize_keywords,
+    )
     from .qzone_auto_like import QzoneAutoLike
     from .profile_like_reply import ProfileLikeReturner
     from .group_rank_renderer import render_group_rank_image, resolve_group_display_names
@@ -42,6 +48,12 @@ else:
     from avatar_rank_renderer import render_poke_rank_image
     from friend_requests import resolve_onebot_call_action
     from config_sections import migrate as migrate_settings, option
+    from keyword_wakeup import (
+        allowed_group_sender,
+        match_keyword,
+        normalize_allowlist,
+        normalize_keywords,
+    )
     from qzone_auto_like import QzoneAutoLike
     from profile_like_reply import ProfileLikeReturner
     from group_rank_renderer import render_group_rank_image, resolve_group_display_names
@@ -267,6 +279,23 @@ class Main(Star):
         self.self_mention_wakeup_enabled = bool(
             option(self.config, "self_mention_wakeup_enabled", True)
         )
+        self.keyword_wakeup_enabled = bool(
+            option(self.config, "keyword_wakeup_enabled", False)
+        )
+        self.keyword_wakeup_words = normalize_keywords(
+            option(self.config, "keyword_wakeup_words", [])
+        )
+        self.keyword_wakeup_mode = str(
+            option(self.config, "keyword_wakeup_mode", "contains") or "contains"
+        ).strip().lower()
+        if self.keyword_wakeup_mode not in {"contains", "prefix"}:
+            self.keyword_wakeup_mode = "contains"
+        self.keyword_wakeup_group_whitelist = normalize_allowlist(
+            option(self.config, "keyword_wakeup_group_whitelist", [])
+        )
+        self.keyword_wakeup_user_whitelist = normalize_allowlist(
+            option(self.config, "keyword_wakeup_user_whitelist", [])
+        )
         self.mention_tool_enabled = bool(
             option(self.config, "mention_tool_enabled", True)
         )
@@ -335,6 +364,10 @@ class Main(Star):
     async def initialize(self):
         logger.info(
             f"Airi 核心工具已加载 | @唤醒: {'启用' if self.self_mention_wakeup_enabled else '未启用'}"
+            f" | 关键词唤醒: {'启用' if self.keyword_wakeup_enabled and self.keyword_wakeup_words else '未启用'}"
+            f" ({self.keyword_wakeup_mode}, {len(self.keyword_wakeup_words)}词,"
+            f" {len(self.keyword_wakeup_group_whitelist)}群白名单,"
+            f" {len(self.keyword_wakeup_user_whitelist)}用户白名单)"
             f" | 主动@工具: {'启用' if self.mention_tool_enabled else '未启用'}"
             f" | 禁言工具: {'启用' if self.mute_tool_enabled else '未启用'}"
             f" | 时长范围: {self.mute_duration_min}~{self.mute_duration_max} 分钟"
@@ -942,6 +975,95 @@ class Main(Star):
             )
         except Exception as exc:
             logger.exception(f"Airi @唤醒失败: {exc}")
+
+    @filter.platform_adapter_type("aiocqhttp")
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def on_keyword_wakeup(self, event: AstrMessageEvent):
+        """Wake the current conversation on a QQ group keyword without @Bot.
+
+        Avoid preexisting native command/@ wakeups and bot-originated messages.
+        Only one explicitly generated LLM request is emitted per matched message.
+        """
+        if not self.keyword_wakeup_enabled or not self.keyword_wakeup_words:
+            return
+
+        message_obj = event.message_obj
+        group_id = getattr(message_obj, "group_id", None)
+        if not allowed_group_sender(
+            group_id,
+            event.get_sender_id(),
+            event.get_self_id(),
+            self.keyword_wakeup_group_whitelist,
+            self.keyword_wakeup_user_whitelist,
+        ):
+            return
+
+        # If AstrBot already classified this as a command or native wakeup,
+        # let its normal pipeline handle it. Otherwise two replies may appear.
+        if getattr(event, "is_at_or_wake_command", False):
+            return
+
+        components = event.get_messages()
+        if any(
+            isinstance(part, Comp.At) and str(part.qq) == str(event.get_self_id())
+            for part in components
+        ):
+            return
+
+        # Plain text only: never search inside quoted messages, image captions,
+        # forwarded content, or other users' @ mentions.
+        prompt = " ".join(
+            str(part.text) for part in components
+            if isinstance(part, Comp.Plain) and str(part.text or "").strip()
+        ).strip()
+        if not match_keyword(
+            prompt, self.keyword_wakeup_words, self.keyword_wakeup_mode
+        ):
+            return
+
+        try:
+            image_urls = []
+            if any(isinstance(part, (Comp.Image, Comp.Reply)) for part in components):
+                image_urls = await collect_mention_image_urls(
+                    event,
+                    image_type=Comp.Image,
+                    reply_type=Comp.Reply,
+                    logger=logger,
+                )
+                if not image_urls and quoted_image_placeholder_present(
+                    event, reply_type=Comp.Reply, image_type=Comp.Image
+                ):
+                    event.should_call_llm(True)
+                    yield event.plain_result("引用的图片暂时无法读取，请重新发送原图。")
+                    return
+
+            conversation_manager = self.context.conversation_manager
+            conversation_id = await conversation_manager.get_curr_conversation_id(
+                event.unified_msg_origin
+            )
+            if not conversation_id:
+                conversation_id = await conversation_manager.new_conversation(
+                    event.unified_msg_origin,
+                    event.get_platform_id(),
+                )
+            conversation = await conversation_manager.get_conversation(
+                event.unified_msg_origin,
+                conversation_id,
+            )
+            if not conversation:
+                logger.error("Airi 关键词唤醒失败：无法获取当前会话。")
+                return
+
+            # True means *suppress AstrBot's default* LLM call; this explicit
+            # request uses the same conversation and persona as @Bot.
+            event.should_call_llm(True)
+            yield event.request_llm(
+                prompt=prompt,
+                image_urls=image_urls,
+                conversation=conversation,
+            )
+        except Exception as exc:
+            logger.exception(f"Airi 关键词唤醒失败: {exc}")
 
     @filter.on_decorating_result()
     async def decorate_mention_result(self, event: AstrMessageEvent):
