@@ -9,6 +9,11 @@ from typing import Any
 
 PATHS = {
     "self_mention_wakeup_enabled": ("chat_settings","self_mention_wakeup_enabled"),
+    "keyword_wakeup_enabled": ("chat_settings", "keyword_wakeup_enabled"),
+    "keyword_wakeup_words": ("chat_settings", "keyword_wakeup_words"),
+    "keyword_wakeup_mode": ("chat_settings", "keyword_wakeup_mode"),
+    "keyword_wakeup_group_whitelist": ("chat_settings", "keyword_wakeup_group_whitelist"),
+    "keyword_wakeup_user_whitelist": ("chat_settings", "keyword_wakeup_user_whitelist"),
     "mention_tool_enabled": ("chat_settings","mention_tool_enabled"),
     "mute_tool_enabled": ("moderation_settings","mute_tool_enabled"),
     "mute_duration_min": ("moderation_settings","mute_duration_min"),
@@ -34,6 +39,11 @@ PATHS = {
 }
 NEW_DEFAULTS = {
     "self_mention_wakeup_enabled": True,
+    "keyword_wakeup_enabled": False,
+    "keyword_wakeup_words": [],
+    "keyword_wakeup_mode": "contains",
+    "keyword_wakeup_group_whitelist": [],
+    "keyword_wakeup_user_whitelist": [],
     "mention_tool_enabled": True,
     "mute_tool_enabled": False,
     "mute_duration_min": 1,
@@ -59,6 +69,11 @@ NEW_DEFAULTS = {
 }
 LEGACY_DEFAULTS = {
     "self_mention_wakeup_enabled": True,
+    "keyword_wakeup_enabled": False,
+    "keyword_wakeup_words": [],
+    "keyword_wakeup_mode": "contains",
+    "keyword_wakeup_group_whitelist": [],
+    "keyword_wakeup_user_whitelist": [],
     "mention_tool_enabled": True,
     "mute_tool_enabled": False,
     "mute_duration_min": 1,
