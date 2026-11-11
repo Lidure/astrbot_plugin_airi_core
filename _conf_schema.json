@@ -13,13 +13,13 @@
       "keyword_wakeup_enabled": {
         "type": "bool",
         "description": "启用群聊关键词唤醒 LLM",
-        "hint": "默认关闭。仅 QQ / OneBot 群聊生效。命中关键词后沿用当前会话请求 LLM；不改变 @Bot、私聊或普通命令行为。",
+        "hint": "独立控制QQ群聊关键词唤醒。权限只看QQ群白名单（空则所有群）；群内所有成员均可触发，不受私聊QQ白名单限制。",
         "default": false
       },
       "keyword_wakeup_private_enabled": {
         "type": "bool",
         "description": "启用 QQ 私聊关键词唤醒 LLM",
-        "hint": "与群聊开关相互独立，默认关闭。只对 QQ / OneBot 私聊生效。沿用同一关键词、包含/前缀模式和用户 QQ 白名单；群白名单不限制私聊。私聊原本就能自动回复时，本功能不会限制未命中关键词的回复。",
+        "hint": "独立控制QQ私聊关键词唤醒，默认关闭。使用已有关键词和匹配模式，权限仅受私聊QQ白名单约束，不受群白名单影响；普通私聊回复仍由AstrBot原生设置决定。",
         "default": false
       },
       "keyword_wakeup_words": {
@@ -43,8 +43,8 @@
       },
       "keyword_wakeup_group_whitelist": {
         "type": "list",
-        "description": "生效 QQ 群白名单",
-        "hint": "填写允许关键词唤醒的 QQ 群号，一条一个。留空表示所有群可用；不影响 @Bot 或其他命令。",
+        "description": "群聊关键词唤醒：QQ群白名单",
+        "hint": "只影响群聊关键词唤醒。留空允许所有QQ群；填写群号后，白名单群内任何成员均可用关键词触发（不检查私聊QQ白名单）。",
         "default": [],
         "items": {
           "type": "string"
@@ -52,8 +52,8 @@
       },
       "keyword_wakeup_user_whitelist": {
         "type": "list",
-        "description": "允许唤醒的用户 QQ 白名单",
-        "hint": "QQ 用户白名单，群聊和私聊关键词唤醒共用。留空表示不限制发送者；群聊还可以用群白名单限制群号。",
+        "description": "私聊关键词唤醒：QQ白名单",
+        "hint": "仅限制QQ私聊关键词唤醒的发送者。留空允许所有私聊QQ；这里的QQ号不会限制群聊成员。保留旧配置中的QQ名单，不会因本次升级清空。",
         "default": [],
         "items": {
           "type": "string"
