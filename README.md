@@ -10,7 +10,7 @@
 
 <p>
   <a href="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml"><img src="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml/badge.svg" alt="Tests" /></a>
-  <img src="https://img.shields.io/badge/version-v1.3.23-f08aab?style=flat" alt="Version v1.3.23" />
+  <img src="https://img.shields.io/badge/version-v1.3.24-f08aab?style=flat" alt="Version v1.3.24" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.12-5575ad?style=flat" alt="Python 3.10 / 3.12 CI" />
   <img src="https://img.shields.io/badge/AstrBot-Plugin-805ad5?style=flat" alt="AstrBot Plugin" />
   <img src="https://img.shields.io/badge/OneBot-v11-49a6a6?style=flat" alt="OneBot v11" />
@@ -126,32 +126,35 @@
 
 如果同时启用自动同意好友与人工审批：**好友申请优先自动通过，群邀请仍进入人工审批**。SnowLuma 在部分版本中把好友申请转换为系统私聊文本，插件也提供相应兼容处理。
 
-### 群聊关键词唤醒 LLM
+### QQ 群聊与私聊关键词唤醒 LLM
 
 在 **AstrBot WebUI → 插件管理 → Airi 核心工具 → AI 对话与互动** 配置：
 
 | 配置项 | 默认值 | 作用 |
 | :--- | :--- | :--- |
-| `keyword_wakeup_enabled` | `false` | 总开关，先关闭；确认关键词和白名单后再启用 |
+| `keyword_wakeup_enabled` | `false` | **群聊关键词唤醒**开关，独立控制群消息 |
+| `keyword_wakeup_private_enabled` | `false` | **QQ 私聊关键词唤醒**开关，独立控制私聊消息 |
 | `keyword_wakeup_words` | `[]` | 多个关键词，例如 `小浅子`、`Airi`；英文不区分大小写 |
 | `keyword_wakeup_mode` | `contains` | `contains` = 消息任意位置包含；`prefix` = 消息去掉开头空白后必须以关键词开头 |
 | `keyword_wakeup_group_whitelist` | `[]` | QQ 群号白名单；留空允许所有群 |
-| `keyword_wakeup_user_whitelist` | `[]` | 用户 QQ 号白名单；留空允许群里所有人；两份白名单同时配置必须同时满足 |
+| `keyword_wakeup_user_whitelist` | `[]` | 群聊与私聊**共用**用户 QQ 白名单，留空表示不限制；群聊还受群白名单限制 |
 
-**示例：**添加关键词 `小浅子`、`Airi`，再在白名单填入需要启用的 QQ 群号：
+**示例：**添加关键词 `小浅子`、`Airi`。需要群聊时打开群聊开关，需要私聊时单独打开私聊开关：
 
-| 群消息 | 包含模式 | 前缀模式 |
+| QQ 群聊或私聊文本 | 包含模式 | 前缀模式 |
 | :--- | :---: | :---: |
 | `小浅子，今天开心吗？` | ✅ | ✅ |
 | `今天小浅子开心吗？` | ✅ | ❌ |
 | `  AIRI 帮我看看` | ✅ | ✅ |
 | `/小浅子 你好` | ❌ | ❌ |
 
-- **只处理 QQ / OneBot 群聊**。不影响私聊，不处理机器人自己发的消息。
-- **不抢占现有指令或 @ 唤醒**：`/xxx` 命令、平台已判定为唤醒的事件、真正 `@Bot` 的消息交给原有逻辑，避免双重调用 LLM。
+- **仅 QQ / OneBot 消息生效**。群聊与私聊两个独立开关，均默认关闭，可只启用其中一个。不会处理机器人自己发的消息。
+- **权限范围明确**：群白名单仅约束群聊；用户 QQ 白名单对群聊、私聊都生效。例如用户白名单只有 `123456789`，则仅该 QQ 可以通过关键词唤醒，不受是否位于群白名单的影响。
+- **特别注意：** AstrBot 原生 QQ 私聊可能本来就会自动调用 LLM。新增私聊关键词功能只在**命中**时显式调用一次并抑制原生重复请求；**不会自动禁止未命中关键词的普通私聊回复**。如想将私聊设为“只有关键词才回复”，还需要调整 AstrBot 自身的私聊唤醒/回复策略。
+- **不抢占现有指令或 @ 唤醒**：`/xxx` 命令和真正 `@Bot` 的消息交给原有逻辑；群聊已被 AstrBot 唤醒的消息也不再触发关键词。私聊的原生唤醒标记会单独处理，保证关键词命中后只发起一次 LLM 请求。
 - 命中后**复用 AstrBot 当前会话、人格、图片输入与 LLM 提供商**；不额外添加 system prompt，也不把关键词偷偷替换成其他内容。
-- **没有关键词时即使打开开关也不会触发。**“包含模式”可能在正常群聊中频繁命中并产生模型费用，建议先填特定群白名单，必要时使用“前缀模式”。
-- 白名单只约束这一项关键词唤醒功能，不会禁止群成员使用其他插件命令或正常 `@Bot`。
+- **没有关键词时即使打开开关也不会触发。**“包含模式”可能在日常对话中频繁命中并产生模型费用，建议按需设置白名单，必要时使用“前缀模式”。
+- 白名单只约束关键词唤醒功能，不会禁止用户使用其他插件命令、私聊正常回复或群聊 `@Bot`。
 
 ### QQ 空间自动点赞
 
@@ -172,7 +175,7 @@
 
 | 分组 | 主要选项 | 初始状态 |
 | :--- | :--- | :--- |
-| 💬 AI 对话与互动 | @Bot 唤醒；关键词唤醒（多关键词/模式/白名单）；主动 @ 工具 | @开启，关键词关闭 |
+| 💬 AI 对话与互动 | @Bot 唤醒；群聊与私聊关键词独立开关；多关键词/模式/白名单；主动 @ 工具 | @开启，两个关键词开关默认关闭 |
 | 🛡️ 群管理与禁言 | LLM 禁言工具；最短/最长禁言时间 | 禁言关闭 |
 | 🎉 入群欢迎 | 欢迎开关；文字；图片 | 关闭 |
 | 📮 好友申请与群邀请 | 自动同意好友；人工审批；审批 QQ | 关闭 |
@@ -332,7 +335,7 @@ AstrBot/data/plugin_data/astrbot_plugin_airi_core/
 <details>
 <summary><strong>为什么 @Bot 不回复，或者图片没有被识别？</strong></summary>
 
-检查「AI 对话与互动」是否启用 `self_mention_wakeup_enabled`，当前接入端能否提供真实 @ 消息段，AstrBot 的 LLM Provider 是否可用。若是关键词不生效，请检查 `keyword_wakeup_enabled`、关键词列表、`contains`/`prefix` 模式、群号和用户 QQ 白名单，并确认是 QQ 群普通文本。图片回复需要上游提供可读取的图片或引用消息；如果只有“[图片]”占位文本而没有图像内容，插件不会把它当作已完成识图。
+检查「AI 对话与互动」是否启用 `self_mention_wakeup_enabled`，当前接入端能否提供真实 @ 消息段，AstrBot 的 LLM Provider 是否可用。若是关键词不生效，请检查群聊开关 `keyword_wakeup_enabled` / 私聊开关 `keyword_wakeup_private_enabled`、关键词列表、`contains`/`prefix` 模式、群号与用户 QQ 白名单，并确认是 QQ 群普通文本。图片回复需要上游提供可读取的图片或引用消息；如果只有“[图片]”占位文本而没有图像内容，插件不会把它当作已完成识图。
 
 </details>
 
@@ -377,6 +380,7 @@ sudo apt install -y fonts-noto-cjk
 
 | 版本 | 重点改进 |
 | :--- | :--- |
+| **v1.3.24** | 扩展 QQ 私聊关键词唤醒：独立开关、共用匹配与用户白名单，避免重复 LLM 请求 |
 | **v1.3.23** | 新增群聊关键词唤醒 LLM：包含/前缀匹配、多关键词、QQ 群与用户白名单，避免重复回复 |
 | **v1.3.22** | 资料卡回赞增加每 90 秒只读补查，解决点赞通知未上报导致的漏赞 |
 | **v1.3.21** | 简化资料卡回赞：当天一次尽量点满，移除次数与冷却配置 |
