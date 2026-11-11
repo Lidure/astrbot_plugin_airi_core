@@ -10,7 +10,7 @@
 
 <p>
   <a href="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml"><img src="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml/badge.svg" alt="Tests" /></a>
-  <img src="https://img.shields.io/badge/version-v1.3.24-f08aab?style=flat" alt="Version v1.3.24" />
+  <img src="https://img.shields.io/badge/version-v1.3.25-f08aab?style=flat" alt="Version v1.3.25" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.12-5575ad?style=flat" alt="Python 3.10 / 3.12 CI" />
   <img src="https://img.shields.io/badge/AstrBot-Plugin-805ad5?style=flat" alt="AstrBot Plugin" />
   <img src="https://img.shields.io/badge/OneBot-v11-49a6a6?style=flat" alt="OneBot v11" />
@@ -136,8 +136,8 @@
 | `keyword_wakeup_private_enabled` | `false` | **QQ 私聊关键词唤醒**开关，独立控制私聊消息 |
 | `keyword_wakeup_words` | `[]` | 多个关键词，例如 `小浅子`、`Airi`；英文不区分大小写 |
 | `keyword_wakeup_mode` | `contains` | `contains` = 消息任意位置包含；`prefix` = 消息去掉开头空白后必须以关键词开头 |
-| `keyword_wakeup_group_whitelist` | `[]` | QQ 群号白名单；留空允许所有群 |
-| `keyword_wakeup_user_whitelist` | `[]` | 群聊与私聊**共用**用户 QQ 白名单，留空表示不限制；群聊还受群白名单限制 |
+| `keyword_wakeup_group_whitelist` | `[]` | **仅群聊使用**：留空所有群；填写后白名单群内的任意成员都能唤醒 |
+| `keyword_wakeup_user_whitelist` | `[]` | **仅私聊使用**：留空所有私聊 QQ；填写后只有指定 QQ 能以私聊关键词唤醒。配置键名不变，原有名单会保留 |
 
 **示例：**添加关键词 `小浅子`、`Airi`。需要群聊时打开群聊开关，需要私聊时单独打开私聊开关：
 
@@ -149,7 +149,7 @@
 | `/小浅子 你好` | ❌ | ❌ |
 
 - **仅 QQ / OneBot 消息生效**。群聊与私聊两个独立开关，均默认关闭，可只启用其中一个。不会处理机器人自己发的消息。
-- **权限范围明确**：群白名单仅约束群聊；用户 QQ 白名单对群聊、私聊都生效。例如用户白名单只有 `123456789`，则仅该 QQ 可以通过关键词唤醒，不受是否位于群白名单的影响。
+- **权限完全分离**：群聊只检查群号白名单，不检查成员 QQ；私聊只检查私聊 QQ 白名单，不检查群号。比如群白名单有群 A、私聊白名单只有 QQ `123456789`，那么群 A 的所有成员都能用关键词唤醒，而私聊只有这个 QQ 可以通过关键词唤醒。
 - **特别注意：** AstrBot 原生 QQ 私聊可能本来就会自动调用 LLM。新增私聊关键词功能只在**命中**时显式调用一次并抑制原生重复请求；**不会自动禁止未命中关键词的普通私聊回复**。如想将私聊设为“只有关键词才回复”，还需要调整 AstrBot 自身的私聊唤醒/回复策略。
 - **不抢占现有指令或 @ 唤醒**：`/xxx` 命令和真正 `@Bot` 的消息交给原有逻辑；群聊已被 AstrBot 唤醒的消息也不再触发关键词。私聊的原生唤醒标记会单独处理，保证关键词命中后只发起一次 LLM 请求。
 - 命中后**复用 AstrBot 当前会话、人格、图片输入与 LLM 提供商**；不额外添加 system prompt，也不把关键词偷偷替换成其他内容。
@@ -175,7 +175,7 @@
 
 | 分组 | 主要选项 | 初始状态 |
 | :--- | :--- | :--- |
-| 💬 AI 对话与互动 | @Bot 唤醒；群聊与私聊关键词独立开关；多关键词/模式/白名单；主动 @ 工具 | @开启，两个关键词开关默认关闭 |
+| 💬 AI 对话与互动 | @Bot 唤醒；群聊与私聊独立开关；群白名单 / 私聊 QQ 白名单分离；多关键词与模式 | @开启，两个关键词开关默认关闭 |
 | 🛡️ 群管理与禁言 | LLM 禁言工具；最短/最长禁言时间 | 禁言关闭 |
 | 🎉 入群欢迎 | 欢迎开关；文字；图片 | 关闭 |
 | 📮 好友申请与群邀请 | 自动同意好友；人工审批；审批 QQ | 关闭 |
@@ -380,6 +380,7 @@ sudo apt install -y fonts-noto-cjk
 
 | 版本 | 重点改进 |
 | :--- | :--- |
+| **v1.3.25** | 修复关键词唤醒白名单互相限制：群聊只看群白名单，私聊只看私聊 QQ 白名单，保留原有 QQ 名单 |
 | **v1.3.24** | 扩展 QQ 私聊关键词唤醒：独立开关、共用匹配与用户白名单，避免重复 LLM 请求 |
 | **v1.3.23** | 新增群聊关键词唤醒 LLM：包含/前缀匹配、多关键词、QQ 群与用户白名单，避免重复回复 |
 | **v1.3.22** | 资料卡回赞增加每 90 秒只读补查，解决点赞通知未上报导致的漏赞 |
