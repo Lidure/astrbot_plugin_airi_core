@@ -64,9 +64,12 @@ def allowed_group_sender(
     sender_id: object,
     self_id: object,
     group_whitelist: frozenset[str],
-    user_whitelist: frozenset[str],
 ) -> bool:
-    """Allow normal human QQ group messages only, with two optional allowlists."""
+    """Only the group allowlist applies to QQ group keyword wakeup.
+
+    Every human member of an allowed QQ group may trigger a keyword,
+    regardless of the separate private-chat QQ allowlist.
+    """
     group = str(group_id or "").strip()
     sender = str(sender_id or "").strip()
     bot = str(self_id or "").strip()
@@ -74,9 +77,8 @@ def allowed_group_sender(
         return False
     if group_whitelist and group not in group_whitelist:
         return False
-    if user_whitelist and sender not in user_whitelist:
-        return False
     return True
+
 
 def allowed_private_sender(
     sender_id: object,
@@ -86,7 +88,7 @@ def allowed_private_sender(
     """Permit a QQ private sender, excluding the bot itself.
 
     Group allowlists do not apply to one-on-one conversations. The optional
-    user allowlist has the same semantics for both group and private chats.
+    user allowlist restricts private messages only, not group messages.
     """
     sender = str(sender_id or "").strip()
     bot = str(self_id or "").strip()
