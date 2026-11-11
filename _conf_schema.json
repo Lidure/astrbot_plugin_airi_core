@@ -2,7 +2,7 @@
   "chat_settings": {
     "type": "object",
     "description": "AI 对话与互动",
-    "hint": "控制 @Bot 唤醒、关键词唤醒及 LLM 主动点名。",
+    "hint": "控制 @Bot、群聊/私聊关键词唤醒和 LLM 主动点名。",
     "items": {
       "self_mention_wakeup_enabled": {
         "type": "bool",
@@ -16,10 +16,16 @@
         "hint": "默认关闭。仅 QQ / OneBot 群聊生效。命中关键词后沿用当前会话请求 LLM；不改变 @Bot、私聊或普通命令行为。",
         "default": false
       },
+      "keyword_wakeup_private_enabled": {
+        "type": "bool",
+        "description": "启用 QQ 私聊关键词唤醒 LLM",
+        "hint": "与群聊开关相互独立，默认关闭。只对 QQ / OneBot 私聊生效。沿用同一关键词、包含/前缀模式和用户 QQ 白名单；群白名单不限制私聊。私聊原本就能自动回复时，本功能不会限制未命中关键词的回复。",
+        "default": false
+      },
       "keyword_wakeup_words": {
         "type": "list",
         "description": "唤醒关键词（可添加多条）",
-        "hint": "每条填写一个关键词，例如 小浅子、Airi。默认忽略英文大小写；也接受逗号或换行分隔。空列表不会触发。",
+        "hint": "群聊和私聊共用的一组关键词，每条填写一个，例如 小浅子、Airi。忽略英文大小写；也接受逗号或换行分隔。",
         "default": [],
         "items": {
           "type": "string"
@@ -47,7 +53,7 @@
       "keyword_wakeup_user_whitelist": {
         "type": "list",
         "description": "允许唤醒的用户 QQ 白名单",
-        "hint": "可选，一条一个 QQ 号；留空表示群内所有人均可触发。群白名单与用户白名单同时设置时必须都满足。",
+        "hint": "QQ 用户白名单，群聊和私聊关键词唤醒共用。留空表示不限制发送者；群聊还可以用群白名单限制群号。",
         "default": [],
         "items": {
           "type": "string"
