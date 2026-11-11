@@ -1,4 +1,4 @@
-"""Pure helpers for a safe, deterministic QQ group keyword-to-LLM wakeup."""
+"""Pure helpers for a safe, deterministic QQ group/private keyword-to-LLM wakeup."""
 from __future__ import annotations
 
 import re
@@ -73,6 +73,24 @@ def allowed_group_sender(
     if not group or not sender or not bot or sender == bot:
         return False
     if group_whitelist and group not in group_whitelist:
+        return False
+    if user_whitelist and sender not in user_whitelist:
+        return False
+    return True
+
+def allowed_private_sender(
+    sender_id: object,
+    self_id: object,
+    user_whitelist: frozenset[str],
+) -> bool:
+    """Permit a QQ private sender, excluding the bot itself.
+
+    Group allowlists do not apply to one-on-one conversations. The optional
+    user allowlist has the same semantics for both group and private chats.
+    """
+    sender = str(sender_id or "").strip()
+    bot = str(self_id or "").strip()
+    if not sender or not bot or sender == bot:
         return False
     if user_whitelist and sender not in user_whitelist:
         return False

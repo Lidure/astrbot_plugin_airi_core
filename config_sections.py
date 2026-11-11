@@ -10,6 +10,7 @@ from typing import Any
 PATHS = {
     "self_mention_wakeup_enabled": ("chat_settings","self_mention_wakeup_enabled"),
     "keyword_wakeup_enabled": ("chat_settings", "keyword_wakeup_enabled"),
+    "keyword_wakeup_private_enabled": ("chat_settings", "keyword_wakeup_private_enabled"),
     "keyword_wakeup_words": ("chat_settings", "keyword_wakeup_words"),
     "keyword_wakeup_mode": ("chat_settings", "keyword_wakeup_mode"),
     "keyword_wakeup_group_whitelist": ("chat_settings", "keyword_wakeup_group_whitelist"),
@@ -40,6 +41,7 @@ PATHS = {
 NEW_DEFAULTS = {
     "self_mention_wakeup_enabled": True,
     "keyword_wakeup_enabled": False,
+    "keyword_wakeup_private_enabled": False,
     "keyword_wakeup_words": [],
     "keyword_wakeup_mode": "contains",
     "keyword_wakeup_group_whitelist": [],
@@ -70,6 +72,7 @@ NEW_DEFAULTS = {
 LEGACY_DEFAULTS = {
     "self_mention_wakeup_enabled": True,
     "keyword_wakeup_enabled": False,
+    "keyword_wakeup_private_enabled": False,
     "keyword_wakeup_words": [],
     "keyword_wakeup_mode": "contains",
     "keyword_wakeup_group_whitelist": [],

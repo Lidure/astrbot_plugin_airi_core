@@ -10,7 +10,8 @@ from types import SimpleNamespace
 
 from config_sections import migrate, option
 from keyword_wakeup import (
-    allowed_group_sender, match_keyword, normalize_allowlist, normalize_keywords,
+    allowed_group_sender, allowed_private_sender,
+    match_keyword, normalize_allowlist, normalize_keywords,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,10 +47,19 @@ class MatchTests(unittest.TestCase):
         self.assertFalse(allowed_group_sender("123456", "999", "999", groups, users))
         self.assertTrue(allowed_group_sender("123456", "888", "999", frozenset(), frozenset()))
 
+    def test_private_allowlist_never_uses_group_allowlist(self):
+        users = normalize_allowlist(["123", "456"])
+        self.assertTrue(allowed_private_sender("123", "999", users))
+        self.assertFalse(allowed_private_sender("888", "999", users))
+        self.assertFalse(allowed_private_sender("999", "999", frozenset()))
+        self.assertFalse(allowed_private_sender(None, "999", frozenset()))
+        self.assertTrue(allowed_private_sender("888", "999", frozenset()))
+
     def test_config_schema_and_safe_defaults(self):
         schema = json.loads((ROOT / "_conf_schema.json").read_text(encoding="utf-8"))
         fields = schema["chat_settings"]["items"]
         self.assertFalse(fields["keyword_wakeup_enabled"]["default"])
+        self.assertFalse(fields["keyword_wakeup_private_enabled"]["default"])
         self.assertEqual(fields["keyword_wakeup_words"]["type"], "list")
         self.assertEqual(fields["keyword_wakeup_mode"]["options"], ["contains", "prefix"])
         for key in ("keyword_wakeup_group_whitelist", "keyword_wakeup_user_whitelist"):
@@ -59,6 +69,7 @@ class MatchTests(unittest.TestCase):
         config = {}
         migrate(config)
         self.assertFalse(option(config, "keyword_wakeup_enabled"))
+        self.assertFalse(option(config, "keyword_wakeup_private_enabled"))
         self.assertEqual(option(config, "keyword_wakeup_words"), [])
         self.assertEqual(option(config, "keyword_wakeup_mode"), "contains")
         config["chat_settings"]["keyword_wakeup_enabled"] = True
@@ -112,9 +123,11 @@ class FakeConversationManager:
 
 
 class FakePlugin:
-    def __init__(self, *, enabled=True, words=("小浅子",), mode="contains",
+    def __init__(self, *, enabled=True, private_enabled=False,
+                 words=("小浅子",), mode="contains",
                  groups=frozenset(), users=frozenset(), manager=None):
         self.keyword_wakeup_enabled = enabled
+        self.keyword_wakeup_private_enabled = private_enabled
         self.keyword_wakeup_words = words
         self.keyword_wakeup_mode = mode
         self.keyword_wakeup_group_whitelist = groups
@@ -123,15 +136,21 @@ class FakePlugin:
 
 
 class FakeEvent:
-    def __init__(self, parts=None, *, group="888", sender="123", bot="999", woken=False):
+    def __init__(self, parts=None, *, group="888", sender="123", bot="999",
+                 woken=False, private=False):
         self.message_obj = SimpleNamespace(group_id=group)
         self.parts = parts if parts is not None else [FakePlain("小浅子 在吗")]
         self.group, self.sender, self.bot = group, sender, bot
+        self.private = private
         self.is_at_or_wake_command = woken
-        self.unified_msg_origin = "aiocqhttp:GroupMessage:888"
+        self.unified_msg_origin = (
+            f"aiocqhttp:FriendMessage:{sender}" if private
+            else "aiocqhttp:GroupMessage:888"
+        )
         self.block_default_calls = 0
         self.requests = []
 
+    def is_private_chat(self): return self.private
     def get_sender_id(self): return self.sender
     def get_self_id(self): return self.bot
     def get_messages(self): return self.parts
@@ -164,6 +183,7 @@ scope = {
     "Comp": SimpleNamespace(Plain=FakePlain, At=FakeAt, Image=FakeImage, Reply=FakeReply),
     "match_keyword": match_keyword,
     "allowed_group_sender": allowed_group_sender,
+    "allowed_private_sender": allowed_private_sender,
     "collect_mention_image_urls": no_media,
     "quoted_image_placeholder_present": lambda *args, **kwargs: False,
     "logger": NullLogger(),
@@ -222,6 +242,59 @@ class HandlerTests(unittest.TestCase):
                 self.assertEqual(run_handler(plugin, event), [])
                 self.assertEqual(event.block_default_calls, 0)
                 self.assertEqual(event.requests, [])
+
+    def test_private_requires_independent_switch(self):
+        # Native AstrBot marks ordinary QQ private chats as wake messages.
+        event = FakeEvent(group=None, private=True, woken=True)
+        self.assertEqual(run_handler(FakePlugin(enabled=True), event), [])
+        self.assertEqual(event.block_default_calls, 0)
+        plugin = FakePlugin(enabled=False, private_enabled=True)
+        result = run_handler(plugin, event)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(event.block_default_calls, 1)
+        self.assertEqual(event.requests[0]["prompt"], "小浅子 在吗")
+        self.assertEqual(event.requests[0]["conversation"]["id"], "old")
+        self.assertEqual(plugin.context.conversation_manager.calls[0],
+                         ("curr", "aiocqhttp:FriendMessage:123"))
+        self.assertEqual(len(event.requests), 1)
+
+    def test_private_match_modes_and_whitelist(self):
+        plugin = FakePlugin(enabled=False, private_enabled=True,
+                            words=("airi",), mode="prefix",
+                            groups=frozenset({"999999"}), users=frozenset({"123"}))
+        allowed = FakeEvent([FakePlain("  AIRI 你好")],
+                            group=None, private=True, woken=True)
+        self.assertEqual(len(run_handler(plugin, allowed)), 1)
+        # Group whitelist does not restrict private conversations.
+        self.assertEqual(allowed.requests[0]["prompt"], "AIRI 你好")
+        disallowed = FakeEvent(group=None, private=True, sender="555")
+        self.assertEqual(run_handler(plugin, disallowed), [])
+        nonprefix = FakeEvent([FakePlain("你好 airi")], group=None, private=True)
+        self.assertEqual(run_handler(plugin, nonprefix), [])
+        normal = FakeEvent(group=None, private=True)
+        self.assertEqual(run_handler(FakePlugin(enabled=False, private_enabled=False),
+                                     normal), [])
+        command = FakeEvent([FakePlain("/airi")], group=None, private=True)
+        self.assertEqual(run_handler(plugin, command), [])
+        own = FakeEvent(group=None, private=True, sender="999")
+        self.assertEqual(run_handler(plugin, own), [])
+
+    def test_private_nonmatching_does_not_intercept_normal_message(self):
+        event = FakeEvent([FakePlain("普通私聊不含关键词")],
+                          group=None, private=True, woken=True)
+        self.assertEqual(run_handler(FakePlugin(private_enabled=True), event), [])
+        self.assertEqual(event.block_default_calls, 0)
+        self.assertEqual(event.requests, [])
+
+    def test_group_behavior_is_unchanged_by_private_setting(self):
+        group_event = FakeEvent(woken=True)
+        self.assertEqual(run_handler(FakePlugin(private_enabled=True), group_event), [])
+        group_event2 = FakeEvent()
+        self.assertEqual(run_handler(FakePlugin(enabled=False, private_enabled=True),
+                                     group_event2), [])
+        group_event3 = FakeEvent()
+        self.assertEqual(len(run_handler(FakePlugin(private_enabled=True),
+                                         group_event3)), 1)
 
     def test_text_only_check_does_not_match_forwarded_or_image_metadata(self):
         event = FakeEvent([FakePlain("普通消息"), FakeReply()])
