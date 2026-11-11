@@ -298,7 +298,9 @@ class Main(Star):
         self.keyword_wakeup_group_whitelist = normalize_allowlist(
             option(self.config, "keyword_wakeup_group_whitelist", [])
         )
-        self.keyword_wakeup_user_whitelist = normalize_allowlist(
+        # Preserve previously configured QQ IDs while limiting the existing
+        # user-whitelist field to private keyword wakeups only.
+        self.keyword_wakeup_private_whitelist = normalize_allowlist(
             option(self.config, "keyword_wakeup_user_whitelist", [])
         )
         self.mention_tool_enabled = bool(
@@ -373,7 +375,7 @@ class Main(Star):
             f" | 私聊关键词唤醒: {'启用' if self.keyword_wakeup_private_enabled and self.keyword_wakeup_words else '未启用'}"
             f" ({self.keyword_wakeup_mode}, {len(self.keyword_wakeup_words)}词,"
             f" {len(self.keyword_wakeup_group_whitelist)}群白名单,"
-            f" {len(self.keyword_wakeup_user_whitelist)}用户白名单)"
+            f" {len(self.keyword_wakeup_private_whitelist)}私聊QQ白名单)"
             f" | 主动@工具: {'启用' if self.mention_tool_enabled else '未启用'}"
             f" | 禁言工具: {'启用' if self.mute_tool_enabled else '未启用'}"
             f" | 时长范围: {self.mute_duration_min}~{self.mute_duration_max} 分钟"
@@ -1001,7 +1003,7 @@ class Main(Star):
             if not allowed_private_sender(
                 event.get_sender_id(),
                 event.get_self_id(),
-                self.keyword_wakeup_user_whitelist,
+                self.keyword_wakeup_private_whitelist,
             ):
                 return
         else:
@@ -1012,7 +1014,6 @@ class Main(Star):
                 event.get_sender_id(),
                 event.get_self_id(),
                 self.keyword_wakeup_group_whitelist,
-                self.keyword_wakeup_user_whitelist,
             ):
                 return
 
