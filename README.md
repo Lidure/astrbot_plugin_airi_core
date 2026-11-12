@@ -10,7 +10,7 @@
 
 <p>
   <a href="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml"><img src="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml/badge.svg" alt="Tests" /></a>
-  <img src="https://img.shields.io/badge/version-v1.3.26-f08aab?style=flat" alt="Version v1.3.26" />
+  <img src="https://img.shields.io/badge/version-v1.3.27-f08aab?style=flat" alt="Version v1.3.27" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.12-5575ad?style=flat" alt="Python 3.10 / 3.12 CI" />
   <img src="https://img.shields.io/badge/AstrBot-Plugin-805ad5?style=flat" alt="AstrBot Plugin" />
   <img src="https://img.shields.io/badge/OneBot-v11-49a6a6?style=flat" alt="OneBot v11" />
@@ -35,7 +35,7 @@
 
 | 模块 | 你可以做什么 |
 | :--- | :--- |
-| **💬 AI 对话与互动** | 支持 `@Bot`、关键词唤醒与独立群/私聊白名单；自动识别 QQ 官Bot，避免机器人之间相互唤醒 |
+| **💬 AI 对话与互动** | 支持 `@Bot`、关键词唤醒、群/私聊白名单；自动识别 QQ 官Bot；跨节点的 `@Bot 命令` 只回复命令、不额外唤醒 LLM |
 | **🛡️ 群管理** | 可选 LLM 群禁言工具，自定义允许的禁言时长；禁言需要相应群管理权限 |
 | **🎉 入群欢迎** | Bot 加入新群后发送自定义欢迎文字与图片；`/help` 可发送同一组欢迎内容 |
 | **📮 好友申请与群邀请** | 自动同意好友申请，或将好友/群邀请交给指定 QQ 私聊审批 |
@@ -126,6 +126,33 @@
 
 如果同时启用自动同意好友与人工审批：**好友申请优先自动通过，群邀请仍进入人工审批**。SnowLuma 在部分版本中把好友申请转换为系统私聊文本，插件也提供相应兼容处理。
 
+### @Bot 命令只让节点回复，不额外唤醒 LLM
+
+**默认启用**「@Bot 命令只由节点回复（不唤醒 LLM）」`at_command_suppress_llm_enabled`。
+
+| 消息 | 是否额外调用 LLM | 理由 |
+| :--- | :---: | :--- |
+| `@小浅子 /help` | ❌ | 带 `/` 的命令自动免 LLM |
+| `@小浅子 申请头衔`（AstrBot 已匹配） | ❌ | 已由 AstrBot 注册命令处理 |
+| `@小浅子 ww帮助`（配置了外部节点规则） | ❌ | 交给 gscore 等其他 OneBot 节点 |
+| `@小浅子 manohelp`（配置了外部节点规则） | ❌ | 交给 Airi 等其他节点 |
+| `@小浅子 今天开心吗？` | ✅ | 正常聊天，继续 LLM |
+
+**外部节点无斜杠命令**需要在「外部节点 @Bot 命令规则」`at_command_external_rules` 中逐条添加。例如：
+
+```text
+ww帮助
+=manohelp
+^ww
+```
+
+- `ww帮助`：只匹配完整的「ww帮助」或其后以空格分隔的参数。
+- `=manohelp`：只匹配完全相同的命令，不匹配更多文字。
+- `^ww`：匹配所有以「ww」开头的命令，包括参数紧接在后面的形式。**这也可能误把以 ww 开头的普通聊天当作命令**，请谨慎使用。
+- **规则只从 `@Bot` 后紧跟的纯文本开头匹配**，不扫描引用消息、图片或整段聊天中提到的命令名称。未配置的其他节点无斜杠命令，AstrBot 无法自动识别为外部节点命令。
+- 命中时调用 `event.should_call_llm(True)`，**不会调用 `stop_event()`**，所以本条消息仍交给原本的 AstrBot / gscore / Airi / 其他 OneBot 节点处理和回复。若外部节点本身未配置好或未响应，本功能不会替它生成命令回复。
+- 为避免误判，关键词唤醒功能中的普通文本匹配不作为「命令」依据；真正的 `@Bot` 聊天仍正常使用当前 LLM。
+
 ### 忽略 QQ 官方机器人的 @ 与关键词唤醒
 
 **默认启用**「忽略 QQ 官方机器人唤醒 LLM」（`ignore_official_qq_bots_enabled`）。当 QQ 官Bot 在群内 `@小浅子` 时，插件会：
@@ -186,7 +213,7 @@
 
 | 分组 | 主要选项 | 初始状态 |
 | :--- | :--- | :--- |
-| 💬 AI 对话与互动 | @Bot 唤醒；忽略 QQ 官Bot（默认开）；群/私聊关键词与独立白名单；多关键词和模式 | @开启、官Bot过滤开启；两个关键词开关默认关闭 |
+| 💬 AI 对话与互动 | @Bot 唤醒；跨节点命令免LLM；忽略QQ官Bot；群/私聊关键词与独立白名单 | @开启、命令免LLM和官Bot过滤开启；关键词开关默认关闭 |
 | 🛡️ 群管理与禁言 | LLM 禁言工具；最短/最长禁言时间 | 禁言关闭 |
 | 🎉 入群欢迎 | 欢迎开关；文字；图片 | 关闭 |
 | 📮 好友申请与群邀请 | 自动同意好友；人工审批；审批 QQ | 关闭 |
@@ -391,6 +418,7 @@ sudo apt install -y fonts-noto-cjk
 
 | 版本 | 重点改进 |
 | :--- | :--- |
+| **v1.3.27** | 新增跨 AstrBot、gscore 与其他 OneBot 节点的 @Bot 命令免LLM：自动识别已注册命令与斜杠命令，外部无斜杠命令可配置 |
 | **v1.3.26** | 自动识别 QQ 官方机器人并忽略其 @ 和关键词 LLM 唤醒；仅识别明确的 is_robot 标识，带缓存与故障放行 |
 | **v1.3.25** | 修复关键词唤醒白名单互相限制：群聊只看群白名单，私聊只看私聊 QQ 白名单，保留原有 QQ 名单 |
 | **v1.3.24** | 扩展 QQ 私聊关键词唤醒：独立开关、共用匹配与用户白名单，避免重复 LLM 请求 |
