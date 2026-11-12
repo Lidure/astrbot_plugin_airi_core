@@ -19,6 +19,7 @@ if __package__:
     from .avatar_rank_renderer import render_poke_rank_image
     from .friend_requests import resolve_onebot_call_action
     from .config_sections import migrate as migrate_settings, option
+    from .at_command_guard import command_reason, normalized_external_rules
     from .official_bot_filter import OfficialQQBotClassifier
     from .keyword_wakeup import (
         allowed_group_sender,
@@ -50,6 +51,7 @@ else:
     from avatar_rank_renderer import render_poke_rank_image
     from friend_requests import resolve_onebot_call_action
     from config_sections import migrate as migrate_settings, option
+    from at_command_guard import command_reason, normalized_external_rules
     from official_bot_filter import OfficialQQBotClassifier
     from keyword_wakeup import (
         allowed_group_sender,
@@ -283,6 +285,12 @@ class Main(Star):
         self.self_mention_wakeup_enabled = bool(
             option(self.config, "self_mention_wakeup_enabled", True)
         )
+        self.at_command_suppress_llm_enabled = bool(
+            option(self.config, "at_command_suppress_llm_enabled", True)
+        )
+        self.at_command_external_rules = normalized_external_rules(
+            option(self.config, "at_command_external_rules", [])
+        )
         self.ignore_official_qq_bots_enabled = bool(
             option(self.config, "ignore_official_qq_bots_enabled", True)
         )
@@ -377,6 +385,8 @@ class Main(Star):
     async def initialize(self):
         logger.info(
             f"Airi 核心工具已加载 | @唤醒: {'启用' if self.self_mention_wakeup_enabled else '未启用'}"
+            f" | @命令免LLM: {'启用' if self.at_command_suppress_llm_enabled else '未启用'}"
+            f" ({len(self.at_command_external_rules)}条外部规则)"
             f" | 忽略QQ官Bot唤醒: {'启用' if self.ignore_official_qq_bots_enabled else '未启用'}"
             f" | 群关键词唤醒: {'启用' if self.keyword_wakeup_enabled and self.keyword_wakeup_words else '未启用'}"
             f" | 私聊关键词唤醒: {'启用' if self.keyword_wakeup_private_enabled and self.keyword_wakeup_words else '未启用'}"
@@ -938,6 +948,23 @@ class Main(Star):
             event.should_call_llm(True)
             logger.debug("Airi 忽略 QQ 官Bot 的 @ 唤醒。")
             return
+
+        # AstrBot knows its own activated command handlers, but other OneBot
+        # nodes (gscore, Airi node, etc.) have separate command registries.
+        # Suppress only the LLM; NEVER stop the event or its node commands.
+        if getattr(self, "at_command_suppress_llm_enabled", False):
+            reason = command_reason(
+                event,
+                self_id,
+                at_type=Comp.At,
+                plain_type=Comp.Plain,
+                external_rules=self.at_command_external_rules,
+            )
+            if reason is not None:
+                event.should_call_llm(True)
+                logger.debug(f"Airi @命令不唤醒 LLM，识别来源: {reason}")
+                return
+
         if not self.self_mention_wakeup_enabled:
             return
 
