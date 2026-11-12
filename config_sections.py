@@ -9,6 +9,8 @@ from typing import Any
 
 PATHS = {
     "self_mention_wakeup_enabled": ("chat_settings","self_mention_wakeup_enabled"),
+    "at_command_suppress_llm_enabled": ("chat_settings", "at_command_suppress_llm_enabled"),
+    "at_command_external_rules": ("chat_settings", "at_command_external_rules"),
     "ignore_official_qq_bots_enabled": ("chat_settings", "ignore_official_qq_bots_enabled"),
     "keyword_wakeup_enabled": ("chat_settings", "keyword_wakeup_enabled"),
     "keyword_wakeup_private_enabled": ("chat_settings", "keyword_wakeup_private_enabled"),
@@ -41,6 +43,8 @@ PATHS = {
 }
 NEW_DEFAULTS = {
     "self_mention_wakeup_enabled": True,
+    "at_command_suppress_llm_enabled": True,
+    "at_command_external_rules": [],
     "ignore_official_qq_bots_enabled": True,
     "keyword_wakeup_enabled": False,
     "keyword_wakeup_private_enabled": False,
@@ -73,6 +77,8 @@ NEW_DEFAULTS = {
 }
 LEGACY_DEFAULTS = {
     "self_mention_wakeup_enabled": True,
+    "at_command_suppress_llm_enabled": True,
+    "at_command_external_rules": [],
     "ignore_official_qq_bots_enabled": True,
     "keyword_wakeup_enabled": False,
     "keyword_wakeup_private_enabled": False,
