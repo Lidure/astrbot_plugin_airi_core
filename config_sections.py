@@ -9,6 +9,7 @@ from typing import Any
 
 PATHS = {
     "self_mention_wakeup_enabled": ("chat_settings","self_mention_wakeup_enabled"),
+    "ignore_official_qq_bots_enabled": ("chat_settings", "ignore_official_qq_bots_enabled"),
     "keyword_wakeup_enabled": ("chat_settings", "keyword_wakeup_enabled"),
     "keyword_wakeup_private_enabled": ("chat_settings", "keyword_wakeup_private_enabled"),
     "keyword_wakeup_words": ("chat_settings", "keyword_wakeup_words"),
@@ -40,6 +41,7 @@ PATHS = {
 }
 NEW_DEFAULTS = {
     "self_mention_wakeup_enabled": True,
+    "ignore_official_qq_bots_enabled": True,
     "keyword_wakeup_enabled": False,
     "keyword_wakeup_private_enabled": False,
     "keyword_wakeup_words": [],
@@ -71,6 +73,7 @@ NEW_DEFAULTS = {
 }
 LEGACY_DEFAULTS = {
     "self_mention_wakeup_enabled": True,
+    "ignore_official_qq_bots_enabled": True,
     "keyword_wakeup_enabled": False,
     "keyword_wakeup_private_enabled": False,
     "keyword_wakeup_words": [],

@@ -214,7 +214,14 @@ class MentionHandlerTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.fn = load_handler()
         self.context = SimpleNamespace(conversation_manager=ConversationManager())
-        self.plugin = SimpleNamespace(self_mention_wakeup_enabled=True, context=self.context)
+        async def is_official_bot(_event):
+            return False
+
+        self.plugin = SimpleNamespace(
+            self_mention_wakeup_enabled=True,
+            context=self.context,
+            _should_ignore_official_qq_bot=is_official_bot,
+        )
 
     async def run_handler(self, e):
         return [result async for result in self.fn(self.plugin, e)]

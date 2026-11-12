@@ -10,7 +10,7 @@
 
 <p>
   <a href="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml"><img src="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml/badge.svg" alt="Tests" /></a>
-  <img src="https://img.shields.io/badge/version-v1.3.25-f08aab?style=flat" alt="Version v1.3.25" />
+  <img src="https://img.shields.io/badge/version-v1.3.26-f08aab?style=flat" alt="Version v1.3.26" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.12-5575ad?style=flat" alt="Python 3.10 / 3.12 CI" />
   <img src="https://img.shields.io/badge/AstrBot-Plugin-805ad5?style=flat" alt="AstrBot Plugin" />
   <img src="https://img.shields.io/badge/OneBot-v11-49a6a6?style=flat" alt="OneBot v11" />
@@ -35,7 +35,7 @@
 
 | 模块 | 你可以做什么 |
 | :--- | :--- |
-| **💬 AI 对话与互动** | 通过 `@Bot` 或可配置的**关键词唤醒** LLM；支持包含/前缀匹配、群与用户白名单；模型可按需主动 @ 指定群友 |
+| **💬 AI 对话与互动** | 支持 `@Bot`、关键词唤醒与独立群/私聊白名单；自动识别 QQ 官Bot，避免机器人之间相互唤醒 |
 | **🛡️ 群管理** | 可选 LLM 群禁言工具，自定义允许的禁言时长；禁言需要相应群管理权限 |
 | **🎉 入群欢迎** | Bot 加入新群后发送自定义欢迎文字与图片；`/help` 可发送同一组欢迎内容 |
 | **📮 好友申请与群邀请** | 自动同意好友申请，或将好友/群邀请交给指定 QQ 私聊审批 |
@@ -126,6 +126,17 @@
 
 如果同时启用自动同意好友与人工审批：**好友申请优先自动通过，群邀请仍进入人工审批**。SnowLuma 在部分版本中把好友申请转换为系统私聊文本，插件也提供相应兼容处理。
 
+### 忽略 QQ 官方机器人的 @ 与关键词唤醒
+
+**默认启用**「忽略 QQ 官方机器人唤醒 LLM」（`ignore_official_qq_bots_enabled`）。当 QQ 官Bot 在群内 `@小浅子` 时，插件会：
+
+- 优先读取消息中的明确机器人标识；若没有，则通过 SnowLuma 的 OneBot `get_group_member_info` 查询 `is_robot`（由 QQ 官方机器人账号段分类信息生成）。
+- 只有 `is_robot: true` 才忽略：既不触发插件显式 LLM 请求，也禁止本次 AstrBot 默认 LLM 请求。普通群友，包括使用常规 QQ 号接入的第三方 Bot，不会因为昵称或关键词看起来像“机器人”就被屏蔽。
+- 对群内官Bot 发出的普通关键词消息也阻止触发，以避免机器人的相互调用循环；私聊不受这项过滤影响。
+- 分类结果缓存 1 小时，首次查询最多等待 3 秒；当上游不支持 `is_robot`、查询异常或超时时，**放行该消息**，避免误封正常群友。也就意味着无法保证所有官Bot都一定被识别。
+
+这项过滤**只阻止 LLM 唤醒**，不会阻止 QQ 收到消息，也不会禁用其它插件的独立命令回复。可在 AI 对话与互动分组中关闭。
+
 ### QQ 群聊与私聊关键词唤醒 LLM
 
 在 **AstrBot WebUI → 插件管理 → Airi 核心工具 → AI 对话与互动** 配置：
@@ -175,7 +186,7 @@
 
 | 分组 | 主要选项 | 初始状态 |
 | :--- | :--- | :--- |
-| 💬 AI 对话与互动 | @Bot 唤醒；群聊与私聊独立开关；群白名单 / 私聊 QQ 白名单分离；多关键词与模式 | @开启，两个关键词开关默认关闭 |
+| 💬 AI 对话与互动 | @Bot 唤醒；忽略 QQ 官Bot（默认开）；群/私聊关键词与独立白名单；多关键词和模式 | @开启、官Bot过滤开启；两个关键词开关默认关闭 |
 | 🛡️ 群管理与禁言 | LLM 禁言工具；最短/最长禁言时间 | 禁言关闭 |
 | 🎉 入群欢迎 | 欢迎开关；文字；图片 | 关闭 |
 | 📮 好友申请与群邀请 | 自动同意好友；人工审批；审批 QQ | 关闭 |
@@ -380,6 +391,7 @@ sudo apt install -y fonts-noto-cjk
 
 | 版本 | 重点改进 |
 | :--- | :--- |
+| **v1.3.26** | 自动识别 QQ 官方机器人并忽略其 @ 和关键词 LLM 唤醒；仅识别明确的 is_robot 标识，带缓存与故障放行 |
 | **v1.3.25** | 修复关键词唤醒白名单互相限制：群聊只看群白名单，私聊只看私聊 QQ 白名单，保留原有 QQ 名单 |
 | **v1.3.24** | 扩展 QQ 私聊关键词唤醒：独立开关、共用匹配与用户白名单，避免重复 LLM 请求 |
 | **v1.3.23** | 新增群聊关键词唤醒 LLM：包含/前缀匹配、多关键词、QQ 群与用户白名单，避免重复回复 |

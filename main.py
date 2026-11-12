@@ -19,6 +19,7 @@ if __package__:
     from .avatar_rank_renderer import render_poke_rank_image
     from .friend_requests import resolve_onebot_call_action
     from .config_sections import migrate as migrate_settings, option
+    from .official_bot_filter import OfficialQQBotClassifier
     from .keyword_wakeup import (
         allowed_group_sender,
         allowed_private_sender,
@@ -49,6 +50,7 @@ else:
     from avatar_rank_renderer import render_poke_rank_image
     from friend_requests import resolve_onebot_call_action
     from config_sections import migrate as migrate_settings, option
+    from official_bot_filter import OfficialQQBotClassifier
     from keyword_wakeup import (
         allowed_group_sender,
         allowed_private_sender,
@@ -281,6 +283,10 @@ class Main(Star):
         self.self_mention_wakeup_enabled = bool(
             option(self.config, "self_mention_wakeup_enabled", True)
         )
+        self.ignore_official_qq_bots_enabled = bool(
+            option(self.config, "ignore_official_qq_bots_enabled", True)
+        )
+        self._official_bot_classifier = OfficialQQBotClassifier()
         self.keyword_wakeup_enabled = bool(
             option(self.config, "keyword_wakeup_enabled", False)
         )
@@ -371,6 +377,7 @@ class Main(Star):
     async def initialize(self):
         logger.info(
             f"Airi 核心工具已加载 | @唤醒: {'启用' if self.self_mention_wakeup_enabled else '未启用'}"
+            f" | 忽略QQ官Bot唤醒: {'启用' if self.ignore_official_qq_bots_enabled else '未启用'}"
             f" | 群关键词唤醒: {'启用' if self.keyword_wakeup_enabled and self.keyword_wakeup_words else '未启用'}"
             f" | 私聊关键词唤醒: {'启用' if self.keyword_wakeup_private_enabled and self.keyword_wakeup_words else '未启用'}"
             f" ({self.keyword_wakeup_mode}, {len(self.keyword_wakeup_words)}词,"
@@ -899,12 +906,20 @@ class Main(Star):
         )
         yield event.plain_result(text)
 
+    async def _should_ignore_official_qq_bot(self, event: AstrMessageEvent) -> bool:
+        """Only QQ official robots are ignored; regular QQ members and self are not."""
+        if not self.ignore_official_qq_bots_enabled:
+            return False
+        get_platform_name = getattr(event, "get_platform_name", None)
+        if not callable(get_platform_name) or get_platform_name() != "aiocqhttp":
+            return False
+        return await self._official_bot_classifier.is_official(
+            event, resolve_onebot_call_action(event)
+        )
+
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_self_mention(self, event: AstrMessageEvent):
-        """@ Bot 时绕过 provider wake prefix，并复用当前会话触发 LLM。"""
-        if not self.self_mention_wakeup_enabled:
-            return
-
+        """@ Bot wakeup, except QQ official bots identified by SnowLuma."""
         self_id = str(event.get_self_id() or "")
         if not self_id:
             return
@@ -914,6 +929,16 @@ class Main(Star):
             for component in event.get_messages()
         )
         if not mentioned_self:
+            return
+
+        # Official QQ bots can @ this account, but must not wake an LLM,
+        # including AstrBot's default provider path. Do this even when the
+        # plugin's custom @-handler is disabled.
+        if await self._should_ignore_official_qq_bot(event):
+            event.should_call_llm(True)
+            logger.debug("Airi 忽略 QQ 官Bot 的 @ 唤醒。")
+            return
+        if not self.self_mention_wakeup_enabled:
             return
 
         prompt = (event.message_str or "").strip()
@@ -1040,6 +1065,13 @@ class Main(Star):
         if not match_keyword(
             prompt, self.keyword_wakeup_words, self.keyword_wakeup_mode
         ):
+            return
+
+        # Avoid bot-to-bot loops even when an official robot happens to send
+        # a configured keyword without @. Other QQ members are unaffected.
+        if not is_private and await self._should_ignore_official_qq_bot(event):
+            event.should_call_llm(True)
+            logger.debug("Airi 忽略 QQ 官Bot 的关键词唤醒。")
             return
 
         try:
