@@ -172,6 +172,7 @@ class FakeEvent:
 class NullLogger:
     def exception(self, *a): raise AssertionError("Unexpected handler exception")
     def error(self, *a): raise AssertionError("Unexpected handler error")
+    def debug(self, *a): pass
 
 
 async def no_media(*args, **kwargs):
