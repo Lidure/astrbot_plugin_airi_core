@@ -1,7 +1,7 @@
 name: astrbot_plugin_airi_core
 display_name: Airi 核心工具🌸
-short_desc: Airi 核心辅助插件，提供 @Bot/关键词唤醒及 QQ 官Bot @ 过滤（包含/前缀匹配与白名单）、LLM 主动 @ 群友、群管理、好友/群邀请审批、入群欢迎与带 QQ 头像的 Poke 图片排行榜及可选 QQ 空间好友新说说自动点赞及 QQ 资料卡自动回赞。
-desc: Airi 核心辅助插件，支持 QQ 官Bot 的自动识别与 LLM 唤醒过滤、可配置的 @Bot / QQ 群聊与私聊关键词 LLM 唤醒（包含/前缀匹配、独立开关、独立QQ群白名单/私聊QQ白名单）、LLM 按需主动 @ 群友、LLM 群禁言、OneBot/Snowluma 好友申请自动同意或指定 QQ 人工审批、群邀请人工审批、Bot 入群欢迎，以及每日 04:00 切日、带 QQ 头像的群内/全局个人 Poke 排行与跨群 Poke 日榜、历史累计榜，并支持 SnowLuma / OneBot 下限频去重的 QQ 空间好友新说说自动点赞。
-version: v1.3.26
+short_desc: Airi 核心辅助插件，提供跨节点 @Bot 命令免LLM、@Bot/关键词唤醒及 QQ 官Bot @ 过滤（包含/前缀匹配与白名单）、LLM 主动 @ 群友、群管理、好友/群邀请审批、入群欢迎与带 QQ 头像的 Poke 图片排行榜及可选 QQ 空间好友新说说自动点赞及 QQ 资料卡自动回赞。
+desc: Airi 核心辅助插件，支持跨 AstrBot / gscore 等 OneBot 节点的 @Bot 命令免LLM、QQ 官Bot 的自动识别与 LLM 唤醒过滤、可配置的 @Bot / QQ 群聊与私聊关键词 LLM 唤醒（包含/前缀匹配、独立开关、独立QQ群白名单/私聊QQ白名单）、LLM 按需主动 @ 群友、LLM 群禁言、OneBot/Snowluma 好友申请自动同意或指定 QQ 人工审批、群邀请人工审批、Bot 入群欢迎，以及每日 04:00 切日、带 QQ 头像的群内/全局个人 Poke 排行与跨群 Poke 日榜、历史累计榜，并支持 SnowLuma / OneBot 下限频去重的 QQ 空间好友新说说自动点赞。
+version: v1.3.27
 author: Lidure
 repo: https://github.com/Lidure/astrbot_plugin_airi_core
