@@ -2,13 +2,28 @@
   "chat_settings": {
     "type": "object",
     "description": "AI 对话与互动",
-    "hint": "控制 @Bot、群聊/私聊关键词唤醒、QQ官Bot忽略和 LLM 主动点名。",
+    "hint": "控制 @Bot 交互、跨节点命令免LLM、群聊/私聊关键词唤醒及 QQ 官Bot过滤。",
     "items": {
       "self_mention_wakeup_enabled": {
         "type": "bool",
         "description": "启用 @Bot 唤醒 LLM",
         "hint": "开启后，在 QQ/OneBot 群聊中 @Bot 并附带消息内容时，会绕过 provider wake prefix，复用当前会话触发 LLM。不会额外注入 system prompt。",
         "default": true
+      },
+      "at_command_suppress_llm_enabled": {
+        "type": "bool",
+        "description": "@Bot 命令只由节点回复（不唤醒 LLM）",
+        "hint": "默认开启。AstrBot已匹配的注册命令自动跳过LLM；此外自动识别 @Bot /指令。其他节点的无斜杠命令请在下方配置；只阻止LLM，不停止命令消息转发。",
+        "default": true
+      },
+      "at_command_external_rules": {
+        "type": "list",
+        "description": "外部节点 @Bot 命令规则（可添加多条）",
+        "hint": "匹配 @Bot 后面紧跟的文本；一行一条。直接填 ww帮助：只匹配该命令或后接空格参数；=manohelp：必须完整相等；^ww：以ww开头的任何指令（可能误拦以ww开头的聊天，谨慎使用）。其他节点命令不能从AstrBot自动读取，需按实际需要填写。",
+        "default": [],
+        "items": {
+          "type": "string"
+        }
       },
       "ignore_official_qq_bots_enabled": {
         "type": "bool",
