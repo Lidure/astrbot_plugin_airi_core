@@ -134,6 +134,10 @@ class FakePlugin:
         self.keyword_wakeup_group_whitelist = groups
         self.keyword_wakeup_private_whitelist = users
         self.context = SimpleNamespace(conversation_manager=manager or FakeConversationManager())
+        self.ignore_official_sender = False
+
+    async def _should_ignore_official_qq_bot(self, event):
+        return self.ignore_official_sender
 
 
 class FakeEvent:
@@ -242,6 +246,14 @@ class HandlerTests(unittest.TestCase):
                 self.assertEqual(run_handler(plugin, event), [])
                 self.assertEqual(event.block_default_calls, 0)
                 self.assertEqual(event.requests, [])
+
+    def test_official_robot_keyword_does_not_request_llm(self):
+        plugin = FakePlugin()
+        plugin.ignore_official_sender = True
+        event = FakeEvent()
+        self.assertEqual(run_handler(plugin, event), [])
+        self.assertEqual(event.block_default_calls, 1)
+        self.assertEqual(event.requests, [])
 
     def test_group_ignores_private_qq_allowlist_even_when_populated(self):
         plugin = FakePlugin(enabled=True,
