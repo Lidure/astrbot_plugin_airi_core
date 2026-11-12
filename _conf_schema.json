@@ -2,12 +2,18 @@
   "chat_settings": {
     "type": "object",
     "description": "AI 对话与互动",
-    "hint": "控制 @Bot、群聊/私聊关键词唤醒和 LLM 主动点名。",
+    "hint": "控制 @Bot、群聊/私聊关键词唤醒、QQ官Bot忽略和 LLM 主动点名。",
     "items": {
       "self_mention_wakeup_enabled": {
         "type": "bool",
         "description": "启用 @Bot 唤醒 LLM",
         "hint": "开启后，在 QQ/OneBot 群聊中 @Bot 并附带消息内容时，会绕过 provider wake prefix，复用当前会话触发 LLM。不会额外注入 system prompt。",
+        "default": true
+      },
+      "ignore_official_qq_bots_enabled": {
+        "type": "bool",
+        "description": "忽略 QQ 官方机器人唤醒 LLM",
+        "hint": "默认开启。收到QQ群成员的@或关键词时，通过 SnowLuma / OneBot 的 get_group_member_info.is_robot 识别官方机器人。识别为官Bot则禁止本插件及 AstrBot 默认 LLM 唤醒；不按昵称、QQ号段猜测，识别失败不误拦普通群友。与普通 QQ 机器人无关。首次查询最多等待3秒，后续缓存1小时。",
         "default": true
       },
       "keyword_wakeup_enabled": {
