@@ -135,6 +135,36 @@ class ProfileLikeReturner:
             or "like limit" in text
         )
 
+    def daily_summary(self) -> dict[str, int | bool]:
+        """Read-only aggregated status; never expose liker QQ IDs.
+
+        A 'limit' is a QQ-side rejection, not a successful automatic return.
+        'submitted' counts accepted API requests and does not guarantee that
+        QQ displayed all requested likes.
+        """
+        result: dict[str, int | bool] = {
+            "enabled": self.enabled,
+            "connected": self._bot is not None and bool(self._self_qq),
+            "attempted": 0, "sent": 0, "limit": 0,
+            "failed": 0, "processing": 0, "submitted": 0,
+        }
+        today = datetime.fromtimestamp(self.clock()).date().isoformat()
+        account = self._state["accounts"].get(self._self_qq, {})
+        if not isinstance(account, dict) or account.get("date") != today:
+            return result
+        users = account.get("users", {})
+        if not isinstance(users, dict):
+            return result
+        for record in users.values():
+            if not isinstance(record, dict):
+                continue
+            result["attempted"] += 1
+            status = record.get("status")
+            if status in ("sent", "limit", "failed", "processing"):
+                result[status] += 1
+            result["submitted"] += max(0, int(record.get("submitted", 0) or 0))
+        return result
+
     async def handle_notice(
         self,
         raw: Any,
@@ -190,16 +220,35 @@ class ProfileLikeReturner:
                     response = await send_like(int(operator), times)
                 except Exception as exc:
                     outcome = "limit" if self._is_quota_error(exc) else "failed"
-                    self._log("warning",
-                              f"资料卡回赞中断（{type(exc).__name__}）；"
-                              f"本次已提交 {submitted} 个赞，今日不重复执行")
+                    if outcome == "limit":
+                        self._log(
+                            "warning",
+                            f"QQ已拒绝资料卡回赞：今日同一好友点赞数达到上限；"
+                            f"本次此前获接受 {submitted} 个点赞请求，今日不重复执行",
+                        )
+                    else:
+                        self._log(
+                            "warning",
+                            f"资料卡回赞接口异常（{type(exc).__name__}）；"
+                            f"本次此前获接受 {submitted} 个点赞请求，"
+                            "为避免重复点赞今日不自动重试",
+                        )
                     break
                 if not self._api_succeeded(response):
-                    reason = response.get("wording") or response.get("message") if isinstance(response, dict) else response
+                    reason = (
+                        (response.get("wording") or response.get("message"))
+                        if isinstance(response, dict) else response
+                    )
                     outcome = "limit" if self._is_quota_error(reason) else "failed"
-                    self._log("warning",
-                              f"资料卡回赞收到失败回执；本次已提交 {submitted} 个赞，"
-                              "今日不重复执行")
+                    hint = (
+                        "QQ返回点赞额度已达上限"
+                        if outcome == "limit" else "QQ返回点赞接口失败"
+                    )
+                    self._log(
+                        "warning",
+                        f"{hint}；本次此前获接受 {submitted} 个点赞请求，"
+                        "为避免重复点赞今日不自动重试",
+                    )
                     break
                 submitted += times
                 users[operator]["submitted"] = submitted
@@ -291,7 +340,10 @@ class ProfileLikeReturner:
         notification. Later scans overlap by 5 minutes to handle API lag.
         Cursor is advanced only after a successful read, and is persisted.
         """
-        stats = {"candidates": 0, "sent": 0, "already_done": 0, "failed": 0}
+        stats = {
+            "candidates": 0, "sent": 0, "limit": 0,
+            "already_done": 0, "failed": 0,
+        }
         if not self.enabled or not self._bot or not self._self_qq:
             return stats
         async with self._poll_lock:
@@ -351,8 +403,9 @@ class ProfileLikeReturner:
             if stats["candidates"]:
                 self._log(
                     "info",
-                    "资料卡补查：候选=%d 已回赞=%d 已处理跳过=%d 失败=%d"
-                    % (stats["candidates"], stats["sent"],
+                    "资料卡补查：候选=%d 完整提交=%d QQ额度受限=%d"
+                    " 已处理跳过=%d 其他失败=%d"
+                    % (stats["candidates"], stats["sent"], stats["limit"],
                        stats["already_done"], stats["failed"]),
                 )
             return stats

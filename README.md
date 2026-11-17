@@ -10,7 +10,7 @@
 
 <p>
   <a href="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml"><img src="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml/badge.svg" alt="Tests" /></a>
-  <img src="https://img.shields.io/badge/version-v1.3.27-f08aab?style=flat" alt="Version v1.3.27" />
+  <img src="https://img.shields.io/badge/version-v1.3.28-f08aab?style=flat" alt="Version v1.3.28" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.12-5575ad?style=flat" alt="Python 3.10 / 3.12 CI" />
   <img src="https://img.shields.io/badge/AstrBot-Plugin-805ad5?style=flat" alt="AstrBot Plugin" />
   <img src="https://img.shields.io/badge/OneBot-v11-49a6a6?style=flat" alt="OneBot v11" />
@@ -193,6 +193,14 @@ ww帮助
 - 命中后**复用 AstrBot 当前会话、人格、图片输入与 LLM 提供商**；不额外添加 system prompt，也不把关键词偷偷替换成其他内容。
 - **没有关键词时即使打开开关也不会触发。**“包含模式”可能在日常对话中频繁命中并产生模型费用，建议按需设置白名单，必要时使用“前缀模式”。
 - 白名单只约束关键词唤醒功能，不会禁止用户使用其他插件命令、私聊正常回复或群聊 `@Bot`。
+
+### 资料卡回赞：诊断 QQ 点赞额度
+
+管理员发送 `/回赞状态`，可以只读查看**今天**回赞的尝试人数、完整提交数、QQ 点赞额度受限数、其他接口失败数和已受理的点赞次数。不返回任何群友的 QQ 号。
+
+当 SnowLuma 的 `send_like` 返回 QQ 错误 `20003`（「今日同一好友点赞数已达上限」）时，表示 QQ 拒绝了该请求，**不是插件未检测到点赞**。插件会显示「QQ额度受限」，并停止对这名用户当天的自动尝试，防止反复点赞触发风控；已提交请求不等于 QQ 页面最终显示的赞数。
+
+如果还在使用 `astrbot_plugin_zanwo` 的「订阅点赞」等其它自动资料卡点赞功能，它与本功能调用相同的 QQ 点赞额度，可能让部分用户在回赞前已达到上限。请根据需要选择保留订阅点赞或优先保留回赞功能，不要通过强制重试来绕开 QQ 上限。
 
 ### QQ 空间自动点赞
 
@@ -418,6 +426,7 @@ sudo apt install -y fonts-noto-cjk
 
 | 版本 | 重点改进 |
 | :--- | :--- |
+| **v1.3.28** | 优化资料卡回赞诊断：单独识别 QQ 额度限制、修复补查统计、新增管理员只读 `/回赞状态` 命令 |
 | **v1.3.27** | 新增跨 AstrBot、gscore 与其他 OneBot 节点的 @Bot 命令免LLM：自动识别已注册命令与斜杠命令，外部无斜杠命令可配置 |
 | **v1.3.26** | 自动识别 QQ 官方机器人并忽略其 @ 和关键词 LLM 唤醒；仅识别明确的 is_robot 标识，带缓存与故障放行 |
 | **v1.3.25** | 修复关键词唤醒白名单互相限制：群聊只看群白名单，私聊只看私聊 QQ 白名单，保留原有 QQ 名单 |

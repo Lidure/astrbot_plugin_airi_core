@@ -338,6 +338,53 @@ class ProfileLikePollTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(summary["already_done"], 1)
         self.assertEqual(len(self.like_calls()), 5)
 
+    async def test_quota_error_is_reported_as_quota_not_general_failure(self):
+        self.add_vote(11223344, seconds_ago=30)
+        original = self.bot.call_action
+
+        async def quota(action, **kwargs):
+            if action == "send_like":
+                self.bot.calls.append((action, kwargs))
+                raise RuntimeError(
+                    "OIDB error 20003 on 0x7e5_104: "
+                    "今日同一好友点赞数已达上限"
+                )
+            return await original(action, **kwargs)
+
+        self.bot.call_action = quota
+        stats = await self.liker.poll_once()
+        self.assertEqual(stats["candidates"], 1)
+        self.assertEqual(stats["limit"], 1)
+        self.assertEqual(stats["failed"], 0)
+        self.assertEqual(stats["sent"], 0)
+        self.assertEqual(len(self.like_calls()), 1)
+        summary = self.liker.daily_summary()
+        self.assertEqual(summary["attempted"], 1)
+        self.assertEqual(summary["limit"], 1)
+        self.assertEqual(summary["submitted"], 0)
+        self.assertTrue(summary["connected"])
+        self.assertEqual((await self.liker.poll_once())["already_done"], 1)
+        self.assertEqual(len(self.like_calls()), 1)
+
+    async def test_daily_summary_reports_partial_accepted_requests(self):
+        self.add_vote(11223344, seconds_ago=25)
+        original = self.bot.call_action
+        attempt = [0]
+
+        async def accept_one_then_limit(action, **kwargs):
+            if action == "send_like":
+                attempt[0] += 1
+                if attempt[0] >= 2:
+                    raise RuntimeError("今日同一好友点赞数已达上限")
+            return await original(action, **kwargs)
+
+        self.bot.call_action = accept_one_then_limit
+        stats = await self.liker.poll_once()
+        self.assertEqual(stats["limit"], 1)
+        summary = self.liker.daily_summary()
+        self.assertEqual(summary["limit"], 1)
+        self.assertEqual(summary["submitted"], 10)
+
     async def test_failure_does_not_advance_watermark(self):
         self.bot.fail_reads = True
         self.add_vote(11223344, seconds_ago=120)
