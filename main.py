@@ -620,6 +620,31 @@ class Main(Star):
         async for result in self._send_welcome(event):
             yield result
 
+    @filter.command("回赞状态")
+    async def profile_like_status(self, event: AstrMessageEvent):
+        """Show aggregate QQ profile-card auto-like outcomes; no QQ IDs."""
+        if getattr(event, "role", "") != "admin":
+            yield event.plain_result("仅 AstrBot 管理员可以查看资料卡回赞状态。")
+            return
+
+        summary = self._profile_like_reply.daily_summary()
+        if not summary["enabled"]:
+            yield event.plain_result("资料卡自动回赞：未启用。")
+            return
+
+        status = "已连接 OneBot" if summary["connected"] else "等待 OneBot 接入"
+        yield event.plain_result(
+            "资料卡自动回赞状态（今日）\n"
+            f"运行：{status}；每 90 秒检查新点赞\n"
+            f"已尝试回赞用户：{summary['attempted']}\n"
+            f"完整提交请求：{summary['sent']}\n"
+            f"QQ 点赞额度受限：{summary['limit']}\n"
+            f"其他接口失败：{summary['failed']}\n"
+            f"处理被中断：{summary['processing']}\n"
+            f"成功受理的点赞次数：{summary['submitted']}（实际显示以 QQ 为准）\n"
+            "QQ 返回「同一好友今日点赞数已达上限」时不会重试，避免刷赞。"
+        )
+
     @filter.command("poke排行")
     async def poke_rank(self, event: AstrMessageEvent, arg1: str = "", arg2: str = ""):
         """查看当前统计日的当前群 Poke 排行，统计日每天 04:00 切换。"""
