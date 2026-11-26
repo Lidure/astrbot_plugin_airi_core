@@ -29,7 +29,6 @@ if __package__:
         normalize_keywords,
     )
     from .qzone_auto_like import QzoneAutoLike
-    from .profile_like_reply import ProfileLikeReturner
     from .group_rank_renderer import render_group_rank_image, resolve_group_display_names
     from .request_approval import RequestApprovalManager
     from .mention_media import (
@@ -61,7 +60,6 @@ else:
         normalize_keywords,
     )
     from qzone_auto_like import QzoneAutoLike
-    from profile_like_reply import ProfileLikeReturner
     from group_rank_renderer import render_group_rank_image, resolve_group_display_names
     from request_approval import RequestApprovalManager
     from mention_media import (
@@ -358,11 +356,6 @@ class Main(Star):
         self._request_approval = RequestApprovalManager(
             self._plugin_data_dir / "pending_requests.json"
         )
-        self._profile_like_reply = ProfileLikeReturner(
-            self._plugin_data_dir / "profile_like_replies.json",
-            logger=logger,
-            enabled=bool(option(self.config, "profile_like_auto_reply_enabled", False)),
-        )
         self.qzone_owner_qq = str(option(self.config, "qzone_owner_qq", "") or "").strip()
         self._qzone_liker = QzoneAutoLike(
             self._plugin_data_dir / "qzone_auto_like.json",
@@ -402,14 +395,12 @@ class Main(Star):
             f" | 审批QQ: {self.request_approval_qq or '未配置'}"
             f" | Poke统计: {'启用' if self.poke_stats_enabled else '未启用'}"
             f" | Poke排行上限: {self.poke_rank_max_limit} 人"
-            f" | 资料卡自动回赞: {'启用（事件通知 + 90秒补查）' if self._profile_like_reply.enabled else '关闭'}"
             f" | 空间自动点赞: {'启用' if self._qzone_liker.enabled else '关闭'}"
             f" / {'只读测试' if self._qzone_liker.dry_run else '实际点赞'}"
             " | Poke日榜切日: 04:00"
         )
 
     async def terminate(self):
-        await self._profile_like_reply.close()
         await self._qzone_liker.close()
 
     def _get_plugin_data_dir(self) -> Path:
@@ -620,31 +611,6 @@ class Main(Star):
         async for result in self._send_welcome(event):
             yield result
 
-    @filter.command("回赞状态")
-    async def profile_like_status(self, event: AstrMessageEvent):
-        """Show aggregate QQ profile-card auto-like outcomes; no QQ IDs."""
-        if getattr(event, "role", "") != "admin":
-            yield event.plain_result("仅 AstrBot 管理员可以查看资料卡回赞状态。")
-            return
-
-        summary = self._profile_like_reply.daily_summary()
-        if not summary["enabled"]:
-            yield event.plain_result("资料卡自动回赞：未启用。")
-            return
-
-        status = "已连接 OneBot" if summary["connected"] else "等待 OneBot 接入"
-        yield event.plain_result(
-            "资料卡自动回赞状态（今日）\n"
-            f"运行：{status}；每 90 秒检查新点赞\n"
-            f"已尝试回赞用户：{summary['attempted']}\n"
-            f"完整提交请求：{summary['sent']}\n"
-            f"QQ 点赞额度受限：{summary['limit']}\n"
-            f"其他接口失败：{summary['failed']}\n"
-            f"处理被中断：{summary['processing']}\n"
-            f"成功受理的点赞次数：{summary['submitted']}（实际显示以 QQ 为准）\n"
-            "QQ 返回「同一好友今日点赞数已达上限」时不会重试，避免刷赞。"
-        )
-
     @filter.command("poke排行")
     async def poke_rank(self, event: AstrMessageEvent, arg1: str = "", arg2: str = ""):
         """查看当前统计日的当前群 Poke 排行，统计日每天 04:00 切换。"""
@@ -843,13 +809,11 @@ class Main(Star):
 
     @filter.platform_adapter_type("aiocqhttp")
     async def on_qzone_capture(self, event: AstrMessageEvent):
-        """从 OneBot 消息捕获账号，同时按需启动空间和资料卡任务。"""
-        bot = getattr(event, "bot", None)
-        self_qq = str(event.get_self_id() or "")
-        if self._profile_like_reply.enabled:
-            self._profile_like_reply.attach_bot(bot, self_qq)
+        """从 OneBot 消息捕获账号，并按需启动空间点赞任务。"""
         if self._qzone_liker.enabled:
-            self._qzone_liker.attach_bot(bot, self_qq)
+            self._qzone_liker.attach_bot(
+                getattr(event, "bot", None), str(event.get_self_id() or "")
+            )
 
     @filter.platform_adapter_type("aiocqhttp")
     @filter.command("空间点赞")
@@ -1211,40 +1175,6 @@ class Main(Star):
             except Exception as exc:
                 logger.exception(f"记录 Poke 统计失败: {exc}")
             return
-
-        # SnowLuma/NapCat send notify/profile_like for a QQ profile-card
-        # like. This is NOT a Qzone post-like notice.
-        if self._profile_like_reply.enabled:
-            from_like = (
-                raw_message.get("notice_type") == "notify"
-                and raw_message.get("sub_type") == "profile_like"
-            )
-            if from_like:
-                bot = getattr(event, "bot", None)
-                self._profile_like_reply.attach_bot(
-                    bot, str(event.get_self_id() or "")
-                )
-                action = resolve_onebot_call_action(event)
-
-                async def _send_profile_like(user_id: int, times: int):
-                    if action is not None:
-                        return await action("send_like", user_id=user_id, times=times)
-                    method = getattr(bot, "send_like", None)
-                    if callable(method):
-                        return await method(user_id=user_id, times=times)
-                    raise RuntimeError("当前 OneBot 接入端不支持 send_like")
-
-                try:
-                    await self._profile_like_reply.handle_notice(
-                        raw_message,
-                        _send_profile_like,
-                        self_id=str(event.get_self_id() or ""),
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "Airi 资料卡自动回赞处理失败：%s", type(exc).__name__
-                    )
-                return
 
         if not self.welcome_enabled:
             return
