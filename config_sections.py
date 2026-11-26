@@ -96,7 +96,6 @@ LEGACY_DEFAULTS = {
     "request_approval_qq": "",
     "poke_stats_enabled": True,
     "poke_rank_max_limit": 100,
-    "profile_like_auto_reply_enabled": False,
     "qzone_auto_like_enabled": False,
     "qzone_poll_interval_sec": 300,
     "qzone_max_likes_per_cycle": 3,
