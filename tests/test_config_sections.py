@@ -34,9 +34,13 @@ class GroupedConfigTests(unittest.TestCase):
         )
         self.assertNotIn("profile_like_settings", self.schema)
         self.assertNotIn("profile_like_auto_reply_enabled", PATHS)
-        for obsolete in ("profile_like_reply_times", "profile_like_daily_limit",
-                         "profile_like_cooldown_sec"):
-            self.assertNotIn(obsolete, self.schema["profile_like_settings"]["items"])
+        for obsolete in (
+            "profile_like_auto_reply_enabled",
+            "profile_like_reply_times",
+            "profile_like_daily_limit",
+            "profile_like_cooldown_sec",
+        ):
+            self.assertNotIn(obsolete, self.schema)
         qzone = groups["qzone_settings"]["items"]
         self.assertEqual(
             list(qzone),
