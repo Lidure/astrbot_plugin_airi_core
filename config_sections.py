@@ -30,7 +30,6 @@ PATHS = {
     "request_approval_qq": ("request_settings","request_approval_qq"),
     "poke_stats_enabled": ("poke_settings","poke_stats_enabled"),
     "poke_rank_max_limit": ("poke_settings","poke_rank_max_limit"),
-    "profile_like_auto_reply_enabled": ("profile_like_settings","profile_like_auto_reply_enabled"),
     "qzone_auto_like_enabled": ("qzone_settings","qzone_auto_like_enabled"),
     "qzone_poll_interval_sec": ("qzone_settings","qzone_poll_interval_sec"),
     "qzone_max_likes_per_cycle": ("qzone_settings","qzone_max_likes_per_cycle"),
@@ -64,7 +63,6 @@ NEW_DEFAULTS = {
     "request_approval_qq": "",
     "poke_stats_enabled": True,
     "poke_rank_max_limit": 100,
-    "profile_like_auto_reply_enabled": False,
     "qzone_auto_like_enabled": False,
     "qzone_poll_interval_sec": 300,
     "qzone_max_likes_per_cycle": 3,
@@ -137,14 +135,35 @@ def option(config: dict, key: str, default: Any = None) -> Any:
 
 
 def migrate(config: dict) -> bool:
-    """Migrate old nondefault values once, with a save for surviving restarts.
+    """Migrate old settings and remove the retired QQ profile-card auto-like setting.
 
     Existing grouped values different from their defaults are never replaced.
     An older, enabled Qzone installation's dry-run=true is preserved; in new
     installs the new default is false so the feature has a single master switch.
     """
+    removed_profile_like = False
+    for key in (
+        "profile_like_auto_reply_enabled",
+        "profile_like_reply_times",
+        "profile_like_daily_limit",
+        "profile_like_cooldown_sec",
+    ):
+        if key in config:
+            config.pop(key, None)
+            removed_profile_like = True
+    if "profile_like_settings" in config:
+        config.pop("profile_like_settings", None)
+        removed_profile_like = True
+
     if config.get(MIGRATION_KEY):
-        return False
+        if removed_profile_like:
+            save = getattr(config, "save_config", None)
+            if callable(save):
+                try:
+                    save()
+                except Exception:
+                    pass
+        return removed_profile_like
 
     for key, path in PATHS.items():
         target = _section(config, path)
