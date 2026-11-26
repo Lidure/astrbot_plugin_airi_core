@@ -189,19 +189,6 @@
       }
     }
   },
-  "profile_like_settings": {
-    "type": "object",
-    "description": "资料卡自动回赞",
-    "hint": "开启后收到资料卡点赞通知，即对同一用户当天执行一次尽量点满（最多50个）的回赞；不提供次数或冷却设置。",
-    "items": {
-      "profile_like_auto_reply_enabled": {
-        "type": "bool",
-        "description": "收到资料卡点赞后当天一次性回赞",
-        "hint": "默认关闭。收到 SnowLuma/OneBot 的 profile_like 通知后，对同一人每日最多触发一次回赞流程；内部以5×10的方式尝试点满当日额度，接口拒绝或达到QQ上限即停止。",
-        "default": false
-      }
-    }
-  },
   "qzone_settings": {
     "type": "object",
     "description": "QQ 空间自动点赞",
