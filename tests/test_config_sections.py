@@ -22,7 +22,7 @@ class GroupedConfigTests(unittest.TestCase):
     def setUpClass(cls):
         cls.schema = json.loads((ROOT / "_conf_schema.json").read_text("utf-8"))
 
-    def test_schema_groups_visible_in_seven_sections(self):
+    def test_schema_groups_visible_in_six_sections(self):
         groups = {
             k: v for k, v in self.schema.items()
             if v.get("type") == "object" and not v.get("invisible")
@@ -30,11 +30,10 @@ class GroupedConfigTests(unittest.TestCase):
         self.assertEqual(
             list(groups),
             ["chat_settings", "moderation_settings", "welcome_settings",
-             "request_settings", "poke_settings", "profile_like_settings", "qzone_settings"],
+             "request_settings", "poke_settings", "qzone_settings"],
         )
-        profile = groups["profile_like_settings"]["items"]
-        self.assertEqual(list(profile), ["profile_like_auto_reply_enabled"])
-        self.assertFalse(profile["profile_like_auto_reply_enabled"]["default"])
+        self.assertNotIn("profile_like_settings", self.schema)
+        self.assertNotIn("profile_like_auto_reply_enabled", PATHS)
         for obsolete in ("profile_like_reply_times", "profile_like_daily_limit",
                          "profile_like_cooldown_sec"):
             self.assertNotIn(obsolete, self.schema["profile_like_settings"]["items"])
@@ -75,20 +74,18 @@ class GroupedConfigTests(unittest.TestCase):
         self.assertFalse(migrate(conf))
         self.assertEqual(conf.save_count, 1)
 
-    def test_profile_auto_reply_uses_single_switch_and_ignores_old_knobs(self):
-        conf = {
-            "profile_like_settings": {
-                "profile_like_auto_reply_enabled": True,
-                "profile_like_reply_times": 1,
-                "profile_like_daily_limit": 1,
-                "profile_like_cooldown_sec": 86400,
-            }
-        }
-        migrate(conf)
-        self.assertTrue(option(conf, "profile_like_auto_reply_enabled"))
-        for obsolete in ("profile_like_reply_times", "profile_like_daily_limit",
-                         "profile_like_cooldown_sec"):
-            self.assertNotIn(obsolete, PATHS)
+    def test_retired_profile_like_settings_are_removed_even_after_migration(self):
+        conf = PersistingConfig({
+            MIGRATION_KEY: True,
+            "profile_like_auto_reply_enabled": True,
+            "profile_like_settings": {"profile_like_auto_reply_enabled": True},
+        })
+        self.assertTrue(migrate(conf))
+        self.assertNotIn("profile_like_auto_reply_enabled", conf)
+        self.assertNotIn("profile_like_settings", conf)
+        self.assertEqual(conf.save_count, 1)
+        self.assertFalse(migrate(conf))
+        self.assertEqual(conf.save_count, 1)
 
     def test_new_install_uses_single_qzone_master_switch(self):
         conf = {}
