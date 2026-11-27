@@ -2,6 +2,6 @@ name: astrbot_plugin_airi_core
 display_name: Airi 核心工具🌸
 short_desc: Airi 核心辅助插件，提供常驻全功能可视化控制中心，统一管理 @Bot/关键词唤醒、跨节点命令免LLM、LLM群管理、好友/群邀请审批、入群欢迎、Poke排行榜与里程碑、QQ空间自动点赞。
 desc: Airi 核心辅助插件，提供常驻的 AstrBot 原生全功能可视化控制中心，统一管理跨节点 @Bot 命令免LLM、QQ官Bot唤醒过滤、群聊/私聊关键词唤醒与白名单、LLM主动@与群禁言、好友/群邀请审批、入群欢迎、Poke统计排行榜及里程碑自动禁言、QQ空间好友新说说自动点赞。控制中心默认注册并始终可见，无需额外开启 WebUI 开关。
-version: v1.4.0
+version: v1.4.1
 author: Lidure
 repo: https://github.com/Lidure/astrbot_plugin_airi_core

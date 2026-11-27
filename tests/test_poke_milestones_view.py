@@ -57,8 +57,20 @@ class AiriControlCenterViewTests(unittest.TestCase):
         for control in ("milestone-global", "milestone-add", "milestone-history", "requests-table", "qzone-scan"):
             self.assertIn(f'id="{control}"', self.source)
         self.assertTrue(self.page.scripts)
-        self.assertTrue(all("src" not in script for script in self.page.scripts))
+        self.assertEqual([script["src"] for script in self.page.scripts if "src" in script], ["/api/plugin/page/bridge-sdk.js"])
         self.assertNotIn(".innerHTML", self.source)
+
+    def test_bridge_sdk_loads_before_inline_initialization(self):
+        # AstrBot 4.29.3 retargets an explicit canonical SDK URL to the
+        # authenticated asset URL; if absent it injects it after inline JS.
+        # The parser must execute the SDK synchronously before the app
+        # captures window.AstrBotPluginView.
+        scripts = self.page.scripts
+        self.assertEqual(scripts[0].get("src"), "/api/plugin/page/bridge-sdk.js")
+        self.assertNotIn("async", scripts[0])
+        self.assertNotIn("defer", scripts[0])
+        self.assertNotIn("type", scripts[0])
+        self.assertTrue(any("src" not in script for script in scripts[1:]))
 
     def test_no_separate_poke_only_view_remains(self):
         old_view = VIEW.parents[1] / "poke-milestones"

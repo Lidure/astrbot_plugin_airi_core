@@ -10,7 +10,7 @@
 
 <p>
   <a href="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml"><img src="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml/badge.svg" alt="Tests" /></a>
-  <img src="https://img.shields.io/badge/version-v1.4.0-f08aab?style=flat" alt="Version v1.4.0" />
+  <img src="https://img.shields.io/badge/version-v1.4.1-f08aab?style=flat" alt="Version v1.4.1" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.12-5575ad?style=flat" alt="Python 3.10 / 3.12 CI" />
   <img src="https://img.shields.io/badge/AstrBot-Plugin-805ad5?style=flat" alt="AstrBot Plugin" />
   <img src="https://img.shields.io/badge/OneBot-v11-49a6a6?style=flat" alt="OneBot v11" />
@@ -383,7 +383,7 @@ sudo apt install -y fonts-noto-cjk
 
 | 版本 | 重点改进 |
 | :--- | :--- |
-| **v1.4.0** | 新增常驻 Airi 控制中心，统一管理插件可视化配置、状态、好友/群邀请审批、Poke 排行与里程碑、QQ 空间扫描；保存后即时应用，危险操作二次确认 |
+| **v1.4.1** | 新增常驻 Airi 控制中心，统一管理插件可视化配置、状态、好友/群邀请审批、Poke 排行与里程碑、QQ 空间扫描；保存后即时应用，危险操作二次确认 |
 | **v1.3.30** | 新增 AstrBot Poke 里程碑原生 View；支持随机阈值、基于群权限的自动禁言与可选 LLM 场景回复 |
 | **v1.3.29** | 移除 QQ 资料卡自动回赞及其轮询接口，保留 QQ 空间自动点赞和其他功能 |
 | **v1.3.28** | 历史版本：优化资料卡回赞诊断并新增管理员只读 `/回赞状态` 命令 |
