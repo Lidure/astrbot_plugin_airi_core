@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-from copy import deepcopy
 from typing import Any
 
 if __package__:
@@ -79,7 +78,7 @@ def validate_settings(payload: Any) -> dict[str, Any]:
                     seen.add(folded)
             clean[key] = items
         elif key == "keyword_wakeup_mode":
-            if value not in {"contains", "prefix"}:
+            if not isinstance(value, str) or value not in {"contains", "prefix"}:
                 raise ValueError("关键词匹配方式只支持 contains 或 prefix")
             clean[key] = value
         elif key in QQ_KEYS:
@@ -109,12 +108,17 @@ def validate_settings(payload: Any) -> dict[str, Any]:
 
 def validate_combined_settings(current: dict[str, Any], updates: dict[str, Any]) -> None:
     merged = {**current, **updates}
-    if "mute_duration_min" in updates or "mute_duration_max" in updates:
-        if int(merged.get("mute_duration_min", 1)) > int(merged.get("mute_duration_max", 10)):
-            raise ValueError("禁言最短时长不能大于最长时长")
-    if "qzone_delay_min_sec" in updates or "qzone_delay_max_sec" in updates:
-        if int(merged.get("qzone_delay_min_sec", 0)) > int(merged.get("qzone_delay_max_sec", 0)):
-            raise ValueError("点赞随机延迟最小值不能大于最大值")
+    try:
+        if "mute_duration_min" in updates or "mute_duration_max" in updates:
+            if int(merged.get("mute_duration_min", 1)) > int(merged.get("mute_duration_max", 10)):
+                raise ValueError("禁言最短时长不能大于最长时长")
+        if "qzone_delay_min_sec" in updates or "qzone_delay_max_sec" in updates:
+            if int(merged.get("qzone_delay_min_sec", 0)) > int(merged.get("qzone_delay_max_sec", 0)):
+                raise ValueError("点赞随机延迟最小值不能大于最大值")
+    except (TypeError, ValueError) as exc:
+        if isinstance(exc, ValueError) and str(exc) in {"禁言最短时长不能大于最长时长", "点赞随机延迟最小值不能大于最大值"}:
+            raise
+        raise ValueError("当前配置存在无效的数值，请先修正后再保存") from exc
     if (updates.get("request_approval_enabled") is True
             or ("request_approval_qq" in updates and merged.get("request_approval_enabled"))) and not str(merged.get("request_approval_qq", "")).strip():
         raise ValueError("启用人工审批前，请先填写审批管理员 QQ")

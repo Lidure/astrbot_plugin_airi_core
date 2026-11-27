@@ -90,6 +90,7 @@ class ConsoleApiTests(unittest.TestCase):
             {"mute_duration_min": 0},
             {"keyword_wakeup_group_whitelist": ["abc"]},
             {"keyword_wakeup_mode": "regex"},
+            {"keyword_wakeup_mode": ["prefix"]},
             {"request_approval_qq": "abc"},
             {"qzone_delay_min_sec": 40, "qzone_delay_max_sec": 10},
             {"mute_duration_min": 20, "mute_duration_max": 10},
