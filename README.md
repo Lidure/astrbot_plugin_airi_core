@@ -10,7 +10,7 @@
 
 <p>
   <a href="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml"><img src="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml/badge.svg" alt="Tests" /></a>
-  <img src="https://img.shields.io/badge/version-v1.3.30-f08aab?style=flat" alt="Version v1.3.30" />
+  <img src="https://img.shields.io/badge/version-v1.4.0-f08aab?style=flat" alt="Version v1.4.0" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.12-5575ad?style=flat" alt="Python 3.10 / 3.12 CI" />
   <img src="https://img.shields.io/badge/AstrBot-Plugin-805ad5?style=flat" alt="AstrBot Plugin" />
   <img src="https://img.shields.io/badge/OneBot-v11-49a6a6?style=flat" alt="OneBot v11" />
@@ -26,7 +26,7 @@
 
 **Airi Core** 是一款适用于 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 的辅助插件，围绕 QQ 机器人常见的交互场景提供一组可以独立开关的功能：AI 对话唤醒（@Bot / 关键词）、LLM 主动 @ 与禁言、好友申请和群邀请审批、入群欢迎、戳一戳排行榜及可选自动禁言里程碑，以及 QQ 空间新说说自动点赞。
 
-无需为了这些功能单独拼接多套脚本；在 AstrBot 插件面板中即可按功能分组管理。
+无需为了这些功能单独拼接多套脚本；插件提供常驻的 **Airi 控制中心 🌸**，在 AstrBot 原生 WebUI 中集中管理各项功能，不需要再单独开启 WebUI。
 
 > [!NOTE]
 > 本插件主要面向 **QQ / OneBot v11（aiocqhttp）** 环境，并兼容部分 **SnowLuma** 上报方式。不同接入端的事件和接口支持情况可能不同。QQ 空间功能依赖非官方接口，不能保证覆盖所有动态。
@@ -35,17 +35,19 @@
 
 | 模块 | 你可以做什么 |
 | :--- | :--- |
+| **🌸 Airi 控制中心** | 常驻原生 WebUI，统一配置对话唤醒、命令规则、群管理、好友审批、欢迎消息、Poke 排行与里程碑、QQ 空间扫描；显示运行状态并提供保存反馈 |
 | **💬 AI 对话与互动** | 支持 `@Bot`、关键词唤醒、群/私聊白名单；自动识别 QQ 官Bot；跨节点的 `@Bot 命令` 只回复命令、不额外唤醒 LLM |
 | **🛡️ 群管理** | 可选 LLM 群禁言工具，自定义允许的禁言时长；禁言需要相应群管理权限 |
 | **🎉 入群欢迎** | Bot 加入新群后发送自定义欢迎文字与图片；`/help` 可发送同一组欢迎内容 |
 | **📮 好友申请与群邀请** | 自动同意好友申请，或将好友/群邀请交给指定 QQ 私聊审批 |
 | **👆 戳一戳排行榜** | 统计群友戳 Bot 的次数，生成带头像的日榜、历史榜、全局榜及跨群榜 |
-| **Poke 里程碑** | AstrBot 原生 View 配置每日次数阈值、随机浮动、自动禁言和可选 LLM 场景回复 |
+| **Poke 里程碑** | 在统一控制中心配置每日次数阈值、随机浮动、自动禁言和可选 LLM 场景回复 |
 | **💗 QQ 空间自动点赞** | 定时扫描好友新说说，队列持久化、限速点赞、状态二次核验、断点续处理 |
 
 <details>
 <summary><strong>了解一些设计细节</strong></summary>
 
+- **常驻控制台**：统一 View 随插件自动注册，不提供额外的 WebUI 开关；进入后即可查看和管理全部功能。
 - **按需启用**：不同功能独立开关。LLM 工具仅在启用时注册，避免无意义的工具开销。
 - **复用会话**：@Bot 唤醒会沿用 AstrBot 当前对话；处理引用图片失败时，不会假装识别成功。
 - **只统计有效 Poke**：只有群友戳机器人本人时才计数，群友互戳不算。
@@ -72,7 +74,7 @@
 
    `https://github.com/Lidure/astrbot_plugin_airi_core`
 
-3. 安装完成后，进入 **Airi 核心工具🌸 → 配置**，按需启用功能。
+3. 安装完成后，进入 **Airi 核心工具🌸 → Airi控制中心🌸**。控制中心默认显示，不需要先开启 WebUI；也可继续使用 AstrBot 原生配置页。
 4. 如更新后提示插件重载，按照面板提示重载插件即可；不需要修改 AstrBot 或 SnowLuma 源码。
 
 > [!TIP]
@@ -301,7 +303,7 @@ ww帮助
 
 ## Poke 里程碑与自动禁言
 
-在 AstrBot Dashboard 的插件详情中打开 **戳一戳里程碑** View（已在 AstrBot 4.29.3 的原生 View 接口上开发）。新增规则、设置目标次数、随机浮动和禁言时长后，手动打开自动禁言总开关。默认总开关关闭、没有预置规则；既有 Poke 统计开关须启用。
+在 **AstrBot WebUI → 插件管理 → Airi 核心工具🌸 → Airi控制中心🌸 → 戳一戳与排行榜** 中管理。统一控制中心还提供对话唤醒、命令过滤、群管理、好友审批、欢迎消息、QQ 空间点赞等配置和状态。新增里程碑规则、设置目标次数、随机浮动和禁言时长后，再手动确认打开自动禁言总开关。默认总开关关闭、没有预置规则；既有 Poke 统计开关须启用。
 
 - 每条规则默认随机浮动 ±2 次、禁言 1 分钟，LLM 场景回复默认关闭。浮动后的实际阈值在规则不变时按群、成员、统计日和规则 ID 稳定生成；跨重启不重新抽取，最小阈值为 1。
 - 仅处理 QQ 群内通过 OneBot（aiocqhttp）上报的戳 Bot 事件。读取同一群成员名单确认双方角色：Bot 为管理员可禁言普通成员，Bot 为群主可禁言普通成员和管理员，群主始终不会被自动禁言。
@@ -381,6 +383,7 @@ sudo apt install -y fonts-noto-cjk
 
 | 版本 | 重点改进 |
 | :--- | :--- |
+| **v1.4.0** | 新增常驻 Airi 控制中心，统一管理插件可视化配置、状态、好友/群邀请审批、Poke 排行与里程碑、QQ 空间扫描；保存后即时应用，危险操作二次确认 |
 | **v1.3.30** | 新增 AstrBot Poke 里程碑原生 View；支持随机阈值、基于群权限的自动禁言与可选 LLM 场景回复 |
 | **v1.3.29** | 移除 QQ 资料卡自动回赞及其轮询接口，保留 QQ 空间自动点赞和其他功能 |
 | **v1.3.28** | 历史版本：优化资料卡回赞诊断并新增管理员只读 `/回赞状态` 命令 |

@@ -278,6 +278,43 @@ class RequestApprovalManager:
             approval_qq=approval_qq,
         )
 
+    async def review_from_web(self, request_id: str, *, approve: bool, client: Any) -> str:
+        """Review a pending request from the authenticated AstrBot dashboard.
+
+        The dashboard session is already authenticated by AstrBot; this method
+        intentionally does not impersonate the QQ approver used by chat commands.
+        """
+        if type(approve) is not bool:
+            return "审批失败：无效的审批动作。"
+        request_id = str(request_id or "").strip().upper()
+        if not request_id:
+            return "请提供申请编号。"
+        item = self.store.get(request_id)
+        if not item:
+            return f"未找到待审批申请 {request_id}，可能已处理或编号有误。"
+        if client is None:
+            return "审批失败：当前 OneBot 客户端不可用。"
+        try:
+            if item.get("kind") == "friend":
+                await client.set_friend_add_request(
+                    flag=str(item.get("flag") or ""), approve=approve
+                )
+                label = "好友申请"
+            elif item.get("kind") == "group_invite":
+                await client.set_group_add_request(
+                    flag=str(item.get("flag") or ""),
+                    sub_type="invite",
+                    approve=approve,
+                )
+                label = "群邀请"
+            else:
+                return f"审批失败：申请 {request_id} 类型无效。"
+        except Exception as exc:
+            return f"审批失败：{exc}。申请 {request_id} 已保留，可稍后重试。"
+        self.store.remove(request_id)
+        action = "同意" if approve else "拒绝"
+        return f"已{action}{label} {request_id}。"
+
     async def review(
         self,
         event: Any,

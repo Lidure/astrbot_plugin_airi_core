@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Airi Core 常驻可视化管理控制中心">
+<title>Airi 控制中心</title>
+<style>
+:root{color-scheme:light;--bg:#f5f6f8;--panel:#fff;--panel2:#f8f9fb;--ink:#20232b;--muted:#6d7481;--line:#e5e8ee;--accent:#e96d8c;--accent2:#fff0f4;--good:#23865b;--warn:#a86a13;--bad:#c74646;--shadow:0 10px 30px rgba(27,36,50,.06);--radius:15px;--font:Inter,"Microsoft YaHei",system-ui,sans-serif}
+:root[data-theme=dark]{color-scheme:dark;--bg:#17191f;--panel:#20232b;--panel2:#272b35;--ink:#edf0f5;--muted:#a0a7b4;--line:#383d49;--accent:#f18aa4;--accent2:#382630;--good:#65c99a;--warn:#e4b76e;--bad:#f08b8b;--shadow:0 10px 30px rgba(0,0,0,.22)}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:14px/1.55 var(--font)}button,input,textarea,select{font:inherit}button{cursor:pointer}button:disabled,input:disabled,textarea:disabled,select:disabled{opacity:.55;cursor:not-allowed}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}[hidden]{display:none!important}
+.app{min-height:100vh;display:grid;grid-template-columns:230px minmax(0,1fr)}.sidebar{position:sticky;top:0;height:100vh;padding:24px 16px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:24px}.brand{display:flex;align-items:center;gap:11px;padding:0 8px}.logo{width:39px;height:39px;border-radius:13px;background:var(--accent2);color:var(--accent);display:grid;place-items:center;font-size:22px}.brand strong{display:block;font-size:16px;letter-spacing:-.03em}.brand small{color:var(--muted)}.nav{display:grid;gap:5px}.nav button{display:flex;align-items:center;gap:11px;width:100%;border:0;border-radius:10px;padding:11px 12px;background:transparent;color:var(--muted);text-align:left;font-weight:600}.nav button:hover{background:var(--panel2);color:var(--ink)}.nav button.active{background:var(--accent2);color:var(--accent)}.nav .ico{width:20px;text-align:center;font-size:16px}.side-foot{margin-top:auto;padding:12px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
+.main{min-width:0;padding:28px clamp(16px,3vw,42px) 48px;max-width:1500px;width:100%;margin:0 auto}.topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:22px}.title h1{font-size:26px;line-height:1.2;margin:0 0 7px;letter-spacing:-.04em}.title p{margin:0;color:var(--muted)}.top-actions{display:flex;gap:9px;align-items:center}.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:99px;background:var(--panel);border:1px solid var(--line);color:var(--muted);font-size:12px;white-space:nowrap}.dot{width:7px;height:7px;border-radius:50%;background:var(--good)}.btn{min-height:38px;border:1px solid var(--line);border-radius:9px;padding:8px 13px;background:var(--panel);color:var(--ink);font-weight:650}.btn:hover{background:var(--panel2)}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn.danger{color:var(--bad)}.btn.small{min-height:30px;padding:5px 9px;font-size:12px}.message{margin:0 0 18px;padding:11px 14px;border-radius:10px;background:var(--accent2);color:var(--ink);border:1px solid color-mix(in srgb,var(--accent) 22%,var(--line))}.message.error{background:color-mix(in srgb,var(--bad) 10%,var(--panel));color:var(--bad);border-color:color-mix(in srgb,var(--bad) 25%,var(--line))}
+.view{display:none}.view.active{display:block}.view-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin:8px 0 18px}.view-head h2{font-size:20px;margin:0 0 3px;letter-spacing:-.03em}.view-head p{margin:0;color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.card,.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}.metric{padding:17px}.metric .label{color:var(--muted);font-size:12px}.metric .value{font-size:27px;font-weight:750;letter-spacing:-.04em;margin:5px 0 1px;font-variant-numeric:tabular-nums}.metric .sub{color:var(--muted);font-size:12px}.panel{padding:18px;margin-bottom:16px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.panel-head h3{margin:0;font-size:15px}.panel-head p{margin:3px 0 0;color:var(--muted);font-size:12px}.two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.feature-list{display:grid;gap:0}.feature{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}.feature:last-child{border-bottom:0}.feature strong{display:block}.feature small{display:block;color:var(--muted);margin-top:2px}.pill{font-size:11px;border-radius:99px;padding:4px 8px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);white-space:nowrap}.pill.on{color:var(--good);border-color:color-mix(in srgb,var(--good) 30%,var(--line));background:color-mix(in srgb,var(--good) 9%,var(--panel))}.pill.warn{color:var(--warn)}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px 18px}.field{min-width:0}.field.full{grid-column:1/-1}.field label,.field>span{display:block;font-weight:650;margin-bottom:6px}.field small,.help{display:block;color:var(--muted);font-size:12px;margin-top:5px;line-height:1.55}.field input:not([type=checkbox]),.field textarea,.field select{width:100%;min-height:39px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--bg);color:var(--ink)}.field textarea{min-height:88px;resize:vertical}.field input[type=number]{font-variant-numeric:tabular-nums}.check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.check{display:flex;align-items:flex-start;gap:9px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}.check input{margin:3px 0 0;width:16px;height:16px;accent-color:var(--accent);flex:none}.check strong{display:block;font-weight:650}.check small{display:block;color:var(--muted);font-size:12px;margin-top:2px}.form-foot{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}.notice{padding:12px 13px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.6;margin:0 0 15px}.notice.warning{background:color-mix(in srgb,var(--warn) 8%,var(--panel));color:var(--warn)}.notice.danger{background:color-mix(in srgb,var(--bad) 8%,var(--panel));color:var(--bad)}
+.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:650px}th,td{text-align:left;padding:10px 11px;border-bottom:1px solid var(--line);vertical-align:middle}th{font-size:11px;color:var(--muted);font-weight:700;background:var(--panel2);white-space:nowrap}tr:last-child td{border-bottom:0}.empty{padding:26px 12px;text-align:center;color:var(--muted)}.actions{display:flex;gap:5px;white-space:nowrap}.text-btn{border:0;background:transparent;color:var(--muted);padding:5px 7px;border-radius:7px}.text-btn:hover{background:var(--panel2);color:var(--ink)}.text-btn.danger:hover{color:var(--bad)}.stat-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}.stat-line:last-child{border:0}.stat-line span{color:var(--muted)}.stat-line strong{font-variant-numeric:tabular-nums}.rule-dialog{width:min(520px,calc(100% - 24px));max-height:90vh;overflow:auto;border:1px solid var(--line);border-radius:16px;padding:20px;background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}.rule-dialog::backdrop{background:rgba(12,16,24,.55)}.dialog-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.dialog-head h3{margin:0}.dialog-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.mobile-note{display:none}
+@media(max-width:1050px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.app{grid-template-columns:195px minmax(0,1fr)}}@media(max-width:760px){.app{display:block}.sidebar{position:sticky;z-index:5;top:0;height:auto;padding:10px 12px;border-right:0;border-bottom:1px solid var(--line);gap:8px}.brand{padding:0 3px}.logo{width:32px;height:32px}.nav{display:flex;overflow-x:auto;gap:5px;padding-bottom:2px}.nav button{width:auto;white-space:nowrap;padding:8px 10px;font-size:12px}.side-foot{display:none}.main{padding:20px 13px 36px}.topbar{align-items:flex-start;flex-direction:column}.top-actions{width:100%;justify-content:space-between}.title h1{font-size:23px}.grid{gap:9px}.metric{padding:13px}.metric .value{font-size:23px}.two-col,.form-grid{grid-template-columns:1fr}.check-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.panel{padding:14px}.view-head{align-items:flex-start;flex-direction:column}.mobile-note{display:block}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">🌸</div><div><strong>Airi Core</strong><small>控制中心</small></div></div>
+    <nav class="nav" aria-label="控制中心导航">
+      <button class="active" data-view="overview"><span class="ico">⌂</span>总览</button>
+      <button data-view="chat"><span class="ico">✦</span>对话与唤醒</button>
+      <button data-view="moderation"><span class="ico">♢</span>群管理与欢迎</button>
+      <button data-view="requests"><span class="ico">♧</span>好友与群邀请</button>
+      <button data-view="poke"><span class="ico">♡</span>戳一戳与排行</button>
+      <button data-view="qzone"><span class="ico">◎</span>QQ 空间点赞</button>
+    </nav>
+    <div class="side-foot">常驻管理台 · 页面随插件自动注册<br>配置保存后即时应用</div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="title"><h1 id="page-title">Airi 控制中心 🌸</h1><p id="page-subtitle">集中查看与管理 Airi Core 的功能、配置和运行状态。</p></div>
+      <div class="top-actions"><span class="chip"><i class="dot"></i><span id="plugin-status">正在连接插件…</span></span><button class="btn" id="refresh" type="button">刷新状态</button></div>
+    </header>
+    <div id="message" class="message" role="status" aria-live="polite" hidden></div>
+
+    <section class="view active" id="view-overview">
+      <div class="view-head"><div><h2>运行概况</h2><p>插件加载后此页面会自动出现在 AstrBot 插件 View 中，无需额外启用。</p></div></div>
+      <div class="grid">
+        <article class="card metric"><div class="label">累计戳一戳</div><div class="value" id="metric-total">—</div><div class="sub">跨群历史统计</div></article>
+        <article class="card metric"><div class="label">今日戳一戳</div><div class="value" id="metric-daily">—</div><div class="sub" id="metric-day">按服务器时间 04:00 切日</div></article>
+        <article class="card metric"><div class="label">统计群聊</div><div class="value" id="metric-groups">—</div><div class="sub" id="metric-users">参与用户 —</div></article>
+        <article class="card metric"><div class="label">空间待处理</div><div class="value" id="metric-pending">—</div><div class="sub" id="metric-qzone">QQ 空间点赞队列</div></article>
+      </div>
+      <div class="two-col" style="margin-top:15px">
+        <section class="panel"><div class="panel-head"><div><h3>功能状态</h3><p>显示当前运行实例的实际状态</p></div></div><div class="feature-list" id="feature-list"><div class="empty">正在读取…</div></div></section>
+        <section class="panel"><div class="panel-head"><div><h3>待处理请求</h3><p>好友申请与群邀请人工审批队列</p></div><button class="btn small" type="button" data-view-jump="requests">查看</button></div><div id="request-summary" class="empty">正在读取…</div></section>
+      </div>
+      <div class="notice">提示：配置修改会即时应用到插件运行实例。LLM 工具开关会同步注册/停用工具；QQ 空间扫描参数会在下一轮任务中生效。对外发送、禁言、自动同意及真实点赞等操作均需要二次确认。</div>
+    </section>
+
+    <section class="view" id="view-chat">
+      <div class="view-head"><div><h2>对话与唤醒</h2><p>管理 @Bot 唤醒、跨节点命令免 LLM、关键词唤醒和主动 @ 工具。</p></div></div>
+      <form class="panel settings-form" data-section="chat_settings">
+        <div class="panel-head"><div><h3>唤醒与命令过滤</h3><p>设置群聊与私聊中哪些消息可以触发 LLM。</p></div></div>
+        <div class="check-grid">
+          <label class="check"><input type="checkbox" data-key="self_mention_wakeup_enabled"><span><strong>@Bot 唤醒 LLM</strong><small>群聊中 @Bot 并附带文本时主动唤醒。</small></span></label>
+          <label class="check"><input type="checkbox" data-key="at_command_suppress_llm_enabled"><span><strong>@Bot 命令免 LLM</strong><small>命令由 AstrBot 或其他节点处理，不额外生成闲聊回复。</small></span></label>
+          <label class="check"><input type="checkbox" data-key="ignore_official_qq_bots_enabled"><span><strong>忽略 QQ 官方机器人唤醒</strong><small>识别为官方机器人时，不触发本插件 LLM 唤醒。</small></span></label>
+          <label class="check"><input type="checkbox" data-key="mention_tool_enabled"><span><strong>LLM 主动 @ 群友工具</strong><small>允许模型在确有需要时点名群友。</small></span></label>
+          <label class="check"><input type="checkbox" data-key="keyword_wakeup_enabled"><span><strong>群聊关键词唤醒</strong><small>启用后，允许群聊关键词触发 LLM。</small></span></label>
+          <label class="check"><input type="checkbox" data-key="keyword_wakeup_private_enabled"><span><strong>私聊关键词唤醒</strong><small>独立控制 QQ 私聊关键词触发。</small></span></label>
+        </div>
+        <div class="form-grid" style="margin-top:16px">
+          <div class="field full"><label for="external-rules">外部节点 @Bot 命令规则</label><textarea id="external-rules" data-key="at_command_external_rules" data-list placeholder="ww帮助&#10;=manohelp&#10;^ww"></textarea><small>一行一条。普通规则匹配命令或后接空格参数；= 表示完整匹配；^ 表示前缀匹配（可能误拦正常聊天）。</small></div>
+          <div class="field"><label for="keyword-words">关键词列表</label><textarea id="keyword-words" data-key="keyword_wakeup_words" data-list placeholder="Airi&#10;小浅子"></textarea><small>群聊和私聊共用；忽略英文大小写。</small></div>
+          <div class="field"><label for="keyword-mode">关键词匹配方式</label><select id="keyword-mode" data-key="keyword_wakeup_mode"><option value="contains">包含关键词</option><option value="prefix">消息开头匹配</option></select><small>包含模式更宽松；前缀模式误触发更少。</small></div>
+          <div class="field"><label for="group-whitelist">群聊关键词白名单</label><textarea id="group-whitelist" data-key="keyword_wakeup_group_whitelist" data-list placeholder="群号，一行一个"></textarea><small>留空表示所有群；只限制群聊关键词唤醒。</small></div>
+          <div class="field"><label for="private-whitelist">私聊关键词 QQ 白名单</label><textarea id="private-whitelist" data-key="keyword_wakeup_user_whitelist" data-list placeholder="QQ 号，一行一个"></textarea><small>留空表示所有私聊用户；不会限制群聊成员。</small></div>
+        </div>
+        <div class="form-foot"><span class="help" id="chat-saved">配置尚未读取</span><button class="btn primary" type="submit">保存对话设置</button></div>
+      </form>
+    </section>
+
+    <section class="view" id="view-moderation">
+      <div class="view-head"><div><h2>群管理与欢迎</h2><p>LLM 群管理能力、入群欢迎消息及其安全边界。</p></div></div>
+      <form class="panel settings-form" data-section="moderation_settings">
+        <div class="panel-head"><div><h3>LLM 禁言工具</h3><p>启用后模型可以根据对话上下文请求群禁言。</p></div></div>
+        <div class="notice warning">禁言会直接影响群成员发言权限。启用后仍会执行 OneBot 平台和群角色权限检查，请谨慎授权。</div>
+        <div class="check-grid"><label class="check"><input type="checkbox" data-key="mute_tool_enabled"><span><strong>启用 LLM 禁言工具</strong><small>需要 Bot 在 QQ 群内具有相应管理权限。</small></span></label></div>
+        <div class="form-grid" style="margin-top:15px">
+          <div class="field"><label for="mute-min">最短禁言时间（分钟）</label><input id="mute-min" type="number" min="1" max="60" data-key="mute_duration_min"></div>
+          <div class="field"><label for="mute-max">最长禁言时间（分钟）</label><input id="mute-max" type="number" min="1" max="43200" data-key="mute_duration_max"></div>
+        </div>
+        <div class="form-foot"><span class="help">禁言工具开关会立即同步到 LLM 工具列表。</span><button class="btn primary" type="submit">保存群管理设置</button></div>
+      </form>
+      <form class="panel settings-form" data-section="welcome_settings">
+        <div class="panel-head"><div><h3>入群欢迎</h3><p>当 Bot 自己加入新群时发送欢迎消息。</p></div></div>
+        <div class="notice warning">启用后会自动向新群发送消息。图片文件仍通过 AstrBot 插件配置上传，当前控制台可编辑欢迎文本和开关。</div>
+        <div class="check-grid"><label class="check"><input type="checkbox" data-key="welcome_enabled"><span><strong>启用入群欢迎消息</strong><small>仅在 Bot 自己加入群聊时触发。</small></span></label></div>
+        <div class="field full" style="margin-top:14px"><label for="welcome-message">欢迎消息内容</label><textarea id="welcome-message" data-key="welcome_message" maxlength="2000"></textarea></div>
+        <div class="field full"><span>已配置欢迎图片</span><div class="notice" id="welcome-images">正在读取图片列表…</div></div>
+        <div class="form-foot"><span class="help">欢迎文本和开关保存后立即生效。</span><button class="btn primary" type="submit">保存欢迎设置</button></div>
+      </form>
+    </section>
+
+    <section class="view" id="view-requests">
+      <div class="view-head"><div><h2>好友与群邀请</h2><p>管理好友自动同意、人工审批通知和待处理请求。</p></div></div>
+      <form class="panel settings-form" data-section="request_settings">
+        <div class="notice warning">自动同意好友申请会直接通过新好友请求；人工审批会向指定 QQ 发送私聊通知。两项功能可以按需组合，但自动同意优先处理好友申请。</div>
+        <div class="check-grid">
+          <label class="check"><input type="checkbox" data-key="auto_accept_friend_request"><span><strong>自动同意好友申请</strong><small>仅支持 OneBot / aiocqhttp 好友申请事件。</small></span></label>
+          <label class="check"><input type="checkbox" data-key="request_approval_enabled"><span><strong>启用好友 / 群邀请人工审批</strong><small>将待审批请求通知给指定 QQ。</small></span></label>
+        </div>
+        <div class="field" style="margin-top:15px"><label for="approval-qq">审批管理员 QQ</label><input id="approval-qq" type="text" inputmode="numeric" data-key="request_approval_qq" placeholder="输入 QQ 号"><small>接收通知并可使用 /同意申请 A001、/拒绝申请 A001 执行审批；WebUI 审批由已登录的 AstrBot 管理员执行。</small></div>
+        <div class="form-foot"><span class="help">申请策略保存后立即生效。</span><button class="btn primary" type="submit">保存申请设置</button></div>
+      </form>
+      <section class="panel"><div class="panel-head"><div><h3>待处理请求</h3><p>最多显示最近 50 条；审批仍使用现有命令完成，避免控制台绕过 OneBot 审批校验。</p></div><span class="pill" id="request-count">0 条</span></div><div id="requests-table" class="table-wrap"><div class="empty">暂无待处理请求。</div></div></section>
+    </section>
+
+    <section class="view" id="view-poke">
+      <div class="view-head"><div><h2>戳一戳与排行榜</h2><p>管理统计开关、排行上限，以及戳一戳里程碑自动禁言。</p></div></div>
+      <form class="panel settings-form" data-section="poke_settings">
+        <div class="panel-head"><div><h3>Poke 统计</h3><p>统计目标为 Bot 自己的群内戳一戳。</p></div></div>
+        <div class="check-grid"><label class="check"><input type="checkbox" data-key="poke_stats_enabled"><span><strong>启用 Poke 统计排行榜</strong><small>关闭后不再记录新戳一戳数据。</small></span></label></div>
+        <div class="field" style="max-width:320px;margin-top:14px"><label for="poke-limit">排行榜人数上限</label><input id="poke-limit" type="number" min="10" max="100" data-key="poke_rank_max_limit"><small>范围 10–100 人。</small></div>
+        <div class="form-foot"><span class="help">统计数据不会因修改配置而清空。</span><button class="btn primary" type="submit">保存统计设置</button></div>
+      </form>
+      <section class="panel"><div class="panel-head"><div><h3>戳一戳里程碑自动禁言</h3><p>按群、成员和统计日独立计数；需启用 Poke 统计。</p></div><button class="btn primary small" id="milestone-add" type="button" disabled>新增规则</button></div>
+        <div class="notice warning">这是实际群管理操作。打开总开关前请确认 Bot 具有群管理权限；规则默认关闭，不会自动创建。</div>
+        <div class="feature"><div><strong>自动禁言总开关</strong><small id="milestone-hint">正在读取…</small></div><input type="checkbox" id="milestone-global" aria-label="启用里程碑自动禁言" disabled></div>
+        <div id="milestone-rules" class="table-wrap"><div class="empty">正在读取规则…</div></div>
+      </section>
+      <div class="two-col">
+        <section class="panel"><div class="panel-head"><div><h3>今日个人排行</h3><p>QQ 号做脱敏展示。</p></div></div><div id="poke-daily-users" class="table-wrap"><div class="empty">正在读取…</div></div></section>
+        <section class="panel"><div class="panel-head"><div><h3>历史个人排行</h3><p>跨群累计次数。</p></div></div><div id="poke-history-users" class="table-wrap"><div class="empty">正在读取…</div></div></section>
+        <section class="panel"><div class="panel-head"><div><h3>今日群排行</h3><p>按今日戳 Bot 次数排序。</p></div></div><div id="poke-daily-groups" class="table-wrap"><div class="empty">正在读取…</div></div></section>
+        <section class="panel"><div class="panel-head"><div><h3>历史群排行</h3><p>跨日累计次数。</p></div></div><div id="poke-history-groups" class="table-wrap"><div class="empty">正在读取…</div></div></section>
+      </div>
+      <section class="panel"><div class="panel-head"><div><h3>最近执行记录</h3><p>显示最近 100 条实际尝试记录。</p></div></div><div id="milestone-history" class="table-wrap"><div class="empty">正在读取记录…</div></div></section>
+    </section>
+
+    <section class="view" id="view-qzone">
+      <div class="view-head"><div><h2>QQ 空间点赞</h2><p>管理好友新说说扫描、待处理队列、频率和测试模式。</p></div><button class="btn" id="qzone-scan" type="button" disabled>手动扫描一次</button></div>
+      <div class="grid">
+        <article class="card metric"><div class="label">已索引动态</div><div class="value" id="qzone-seen">—</div><div class="sub">去重记录</div></article>
+        <article class="card metric"><div class="label">待处理队列</div><div class="value" id="qzone-queue">—</div><div class="sub">保留待处理任务</div></article>
+        <article class="card metric"><div class="label">本次点赞成功</div><div class="value" id="qzone-liked">—</div><div class="sub" id="qzone-failed">失败 —</div></article>
+        <article class="card metric"><div class="label">好友数</div><div class="value" id="qzone-friends">—</div><div class="sub" id="qzone-last-scan">尚未扫描</div></article>
+      </div>
+      <form class="panel settings-form" data-section="qzone_settings" style="margin-top:15px">
+        <div class="panel-head"><div><h3>扫描与点赞设置</h3><p>支持自动运行和手动扫描；状态及去重队列保存在插件数据目录。</p></div><span class="pill" id="qzone-mode">未启用</span></div>
+        <div class="notice danger">真实点赞会代表 Bot 对好友说说执行点赞。开启真实模式前请确认账号、范围和频率。只读测试模式不会发送点赞请求；切换到真实模式后也不会补点测试期间已处理的历史动态。</div>
+        <div class="check-grid">
+          <label class="check"><input type="checkbox" data-key="qzone_auto_like_enabled"><span><strong>启用自动扫描</strong><small>自动发现好友新说说并加入限速队列。</small></span></label>
+          <label class="check"><input type="checkbox" data-key="qzone_dry_run"><span><strong>只读测试模式</strong><small>只扫描和记录，不执行真实点赞。建议首次启用时保持开启。</small></span></label>
+        </div>
+        <div class="form-grid" style="margin-top:15px">
+          <div class="field"><label for="qzone-owner">管理命令授权 QQ</label><input id="qzone-owner" inputmode="numeric" data-key="qzone_owner_qq"><small>允许该 QQ 使用 /空间点赞 状态|开启|关闭|扫描。</small></div>
+          <div class="field"><label for="qzone-interval">扫描间隔（秒）</label><input id="qzone-interval" type="number" min="120" max="86400" data-key="qzone_poll_interval_sec"></div>
+          <div class="field"><label for="qzone-max">每轮最多尝试点赞数</label><input id="qzone-max" type="number" min="1" max="10" data-key="qzone_max_likes_per_cycle"></div>
+          <div class="field"><label for="qzone-batch">每轮补充检查好友数</label><input id="qzone-batch" type="number" min="0" max="20" data-key="qzone_friend_batch_size"></div>
+          <div class="field"><label for="qzone-feed">每个来源最多请求动态数</label><input id="qzone-feed" type="number" min="10" max="60" data-key="qzone_feed_count"></div>
+          <div class="field"><label for="qzone-delay-min">点赞前随机延迟最小值（秒）</label><input id="qzone-delay-min" type="number" min="0" max="120" data-key="qzone_delay_min_sec"></div>
+          <div class="field"><label for="qzone-delay-max">点赞前随机延迟最大值（秒）</label><input id="qzone-delay-max" type="number" min="0" max="180" data-key="qzone_delay_max_sec"></div>
+        </div>
+        <div class="form-foot"><span class="help">当前运行状态会显示在上方；OneBot 收到消息后自动绑定账号。</span><button class="btn primary" type="submit">保存空间点赞设置</button></div>
+      </form>
+      <section class="panel"><div class="panel-head"><div><h3>运行详情</h3><p>不显示 Cookie、Skey 或其他登录凭据。</p></div></div><div id="qzone-details"><div class="empty">正在读取…</div></div></section>
+    </section>
+  </main>
+</div>
+
+<dialog class="rule-dialog" id="milestone-dialog">
+  <form id="milestone-editor">
+    <div class="dialog-head"><h3 id="milestone-dialog-title">新增里程碑规则</h3><button class="btn small" type="button" id="milestone-close">关闭</button></div>
+    <input type="hidden" name="id">
+    <div class="field"><label>规则名称</label><input name="name" maxlength="40" required placeholder="例如：第 30 次戳戳"></div>
+    <div class="form-grid"><div class="field"><label>目标次数</label><input name="target" type="number" min="1" max="1000000" value="30" required></div><div class="field"><label>随机浮动次数</label><input name="tolerance" type="number" min="0" max="10000" value="2" required></div><div class="field"><label>禁言时长（分钟）</label><input name="mute_minutes" type="number" min="1" max="43200" value="1" required></div></div>
+    <label class="check"><input name="enabled" type="checkbox" checked><span><strong>启用此规则</strong></span></label>
+    <label class="check"><input name="llm_enabled" type="checkbox"><span><strong>禁言成功后附带 LLM 场景回复</strong></span></label>
+    <div class="field" style="margin-top:12px"><label>回复提示（可选）</label><textarea name="prompt" maxlength="1000" placeholder="结合当前群聊气氛，轻轻吐槽对方又来戳我"></textarea></div>
+    <div id="milestone-form-error" class="message error" hidden></div>
+    <div class="dialog-foot"><button class="btn" type="button" id="milestone-cancel">取消</button><button class="btn primary" type="submit" id="milestone-save">保存规则</button></div>
+  </form>
+</dialog>
+<script>
+(() => {
+  "use strict";
+  const bridge = window.AstrBotPluginView;
+  const $ = id => document.getElementById(id);
+  const ROUTES = {state:"console/state",settings:"console/settings",requestReview:"console/requests/review",scan:"console/qzone/scan",milestones:"poke-milestones/state",milestoneSettings:"poke-milestones/settings",saveRule:"poke-milestones/rules/save",toggleRule:"poke-milestones/rules/toggle",deleteRule:"poke-milestones/rules/delete"};
+  const titles = {overview:["Airi 控制中心 🌸","集中查看与管理 Airi Core 的功能、配置和运行状态。"],chat:["对话与唤醒","管理 @Bot 唤醒、命令免 LLM、关键词和主动 @ 工具。"],moderation:["群管理与欢迎","配置群管理能力、入群欢迎和消息内容。"],requests:["好友与群邀请","管理自动同意、人工审批和待处理请求。"],poke:["戳一戳与排行榜","管理 Poke 统计、排行榜和里程碑自动禁言。"],qzone:["QQ 空间点赞","管理好友新说说扫描、队列和点赞频率。"]};
+  let state=null, milestoneState=null, busy=false, ready=false;
+  const dialog=$("milestone-dialog"), milestoneForm=$("milestone-editor");
+  const el=(tag,text,klass)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text??"");if(klass)n.className=klass;return n;};
+  const unwrap=r=>r?.data??r;
+  function notify(text,error=false){const box=$("message");box.textContent=text;box.hidden=!text;box.classList.toggle("error",error);}
+  function errorText(e){return e instanceof Error?e.message:String(e);}
+  function setBusy(value){busy=value;$("refresh").disabled=busy||!ready;for(const b of document.querySelectorAll(".settings-form button[type=submit],#qzone-scan,#milestone-add,#milestone-save"))b.disabled=busy||!ready;}
+  function navigate(name){if(!titles[name])return;for(const b of document.querySelectorAll("[data-view]"))b.classList.toggle("active",b.dataset.view===name);for(const section of document.querySelectorAll(".view"))section.classList.toggle("active",section.id==="view-"+name);$("page-title").textContent=titles[name][0];$("page-subtitle").textContent=titles[name][1];}
+  document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.view)));
+  document.querySelectorAll("[data-view-jump]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.viewJump)));
+  function fillSettings(){
+    for(const form of document.querySelectorAll(".settings-form"))for(const control of form.querySelectorAll("[data-key]")){
+      const key=control.dataset.key,value=state.settings[key];
+      if(control.type==="checkbox")control.checked=value===true;
+      else if(control.dataset.list!==undefined)control.value=Array.isArray(value)?value.join("\n"):"";
+      else control.value=value??"";
+    }
+    const images=state.settings.welcome_images;
+    $("welcome-images").textContent=Array.isArray(images)&&images.length?images.join("\n"):"尚未配置欢迎图片。图片上传请使用 AstrBot 插件配置页。";
+    $("chat-saved").textContent="设置已读取；保存后即时应用。";
+  }
+  function collect(form){const result={};for(const control of form.querySelectorAll("[data-key]")){const key=control.dataset.key;let value;if(control.type==="checkbox")value=control.checked;else if(control.dataset.list!==undefined)value=control.value.split(/[\n,，;；]+/).map(x=>x.trim()).filter(Boolean);else if(control.type==="number")value=Number(control.value);else value=control.value;result[key]=value;}return result;}
+  function needsConfirmation(updates){const current=state.settings;for(const key of ["auto_accept_friend_request","request_approval_enabled","welcome_enabled","mute_tool_enabled","qzone_auto_like_enabled"])if(updates[key]===true&&current[key]!==true)return true;const enabled=updates.qzone_auto_like_enabled??current.qzone_auto_like_enabled;const dry=updates.qzone_dry_run??current.qzone_dry_run;return !!enabled&&dry===false&&current.qzone_dry_run!==false;}
+  async function saveForm(form){if(busy||!state)return;const updates=collect(form);let confirmSideEffects=false;if(needsConfirmation(updates)){if(!confirm("此设置会触发真实的群管理、消息通知、好友处理或 QQ 空间操作。确认继续吗？"))return;confirmSideEffects=true;}setBusy(true);try{const result=unwrap(await bridge.apiPost(ROUTES.settings,{settings:updates,confirm_side_effects:confirmSideEffects}));if(result?.status==="error")throw Error(result.message||"保存失败");state=result;fillSettings();renderOverview();renderRequests();renderQzone();renderPokeRanks();notify("设置已保存，并已应用到当前运行实例。");}catch(e){notify("保存失败："+errorText(e),true);}finally{setBusy(false);}}
+  document.querySelectorAll(".settings-form").forEach(form=>form.addEventListener("submit",e=>{e.preventDefault();if(form.reportValidity())saveForm(form);}));
+  function renderOverview(){if(!state)return;const s=state.stats||{},q=state.qzone||{},pending=state.pending_requests||[];$("plugin-status").textContent="插件已加载 · 控制中心在线";$("metric-total").textContent=Number(s.total_pokes||0).toLocaleString();$("metric-daily").textContent=Number(s.daily_pokes||0).toLocaleString();$("metric-day").textContent="统计日："+(s.stats_day||"暂无数据");$("metric-groups").textContent=Number(s.group_count||0).toLocaleString();$("metric-users").textContent="参与用户 "+Number(s.user_count||0).toLocaleString();$("metric-pending").textContent=Number(q.pending_count||0).toLocaleString();$("metric-qzone").textContent=q.enabled?(q.dry_run?"只读测试队列":"真实点赞队列"):"空间扫描未启用";
+    const rows=[["@Bot 唤醒 LLM",state.settings.self_mention_wakeup_enabled],["@Bot 命令免 LLM",state.settings.at_command_suppress_llm_enabled],["群聊关键词唤醒",state.settings.keyword_wakeup_enabled],["LLM 主动 @ 工具",state.settings.mention_tool_enabled],["LLM 禁言工具",state.settings.mute_tool_enabled],["入群欢迎",state.settings.welcome_enabled],["好友申请自动同意",state.settings.auto_accept_friend_request],["Poke 统计",state.settings.poke_stats_enabled],["QQ 空间自动扫描",q.enabled]];
+    const list=$("feature-list");list.replaceChildren();for(const [name,on] of rows){const row=el("div",undefined,"feature"),copy=el("div"),strong=el("strong",name),small=el("small",on?"当前已启用":"当前已关闭"),pill=el("span",on?"已启用":"已关闭","pill"+(on?" on":""));copy.append(strong,small);row.append(copy,pill);list.append(row);}
+    $("request-summary").textContent=pending.length?"当前有 "+pending.length+" 条请求等待审批。":"暂无待处理请求。";
+  }
+  function renderRequests(){const rows=state?.pending_requests||[];$("request-count").textContent=rows.length+" 条";const panel=$("requests-table");if(!rows.length){panel.replaceChildren(el("div","暂无待处理请求。","empty"));return;}const table=el("table"),head=el("thead"),tr=el("tr");for(const t of ["编号","类型","申请人","群聊","验证信息","时间","操作"]){const th=el("th",t);tr.append(th);}head.append(tr);const body=el("tbody");for(const r of rows){const row=el("tr"),values=[r.request_id,r.kind==="friend"?"好友申请":"群邀请",(r.nickname||"未知")+"（"+(r.user_id||"—")+"）",r.group_id?(r.group_name||"群")+"（"+r.group_id+"）":"—",r.comment||"无",r.created_at||"—"];for(const v of values)row.append(el("td",v));const td=el("td"),actions=el("div",undefined,"actions"),yes=el("button","同意","btn small"),no=el("button","拒绝","btn small danger");yes.type=no.type="button";yes.dataset.requestApprove=r.request_id;no.dataset.requestReject=r.request_id;const canReview=!!state.runtime.onebot_client_available;yes.disabled=no.disabled=!canReview;actions.append(yes,no);td.append(actions);row.append(td);body.append(row);}table.append(head,body);panel.replaceChildren(table);}
+  function renderPokeRanks(){if(!state)return;const ranks=state.poke_ranks||{};for(const [key,id] of [["daily_users","poke-daily-users"],["history_users","poke-history-users"],["daily_groups","poke-daily-groups"],["history_groups","poke-history-groups"]]){const rows=(ranks[key]||[]).map((r,i)=>[i+1,r.label,r.count+" 次"]);table($(id),["排名","对象","次数"],rows,"暂无统计数据。");}}
+  $("requests-table").addEventListener("click",async e=>{const b=e.target.closest("button");if(!b||busy)return;const approveId=b.dataset.requestApprove,rejectId=b.dataset.requestReject,id=approveId||rejectId;if(!id)return;const approve=!!approveId;if(!confirm((approve?"确定同意":"确定拒绝")+"申请 "+id+" 吗？此操作会直接调用 OneBot 处理申请。"))return;setBusy(true);try{const r=unwrap(await bridge.apiPost(ROUTES.requestReview,{request_id:id,approve,confirm:true}));if(r?.status==="error")throw Error(r.message||"审批失败");state=r.state||state;renderRequests();renderOverview();notify(r.message||"审批已完成。");}catch(err){notify("审批失败："+errorText(err),true);}finally{setBusy(false);}});
+  function renderQzone(){if(!state)return;const q=state.qzone||{};$("qzone-seen").textContent=Number(q.seen_count||0).toLocaleString();$("qzone-queue").textContent=Number(q.pending_count||0).toLocaleString();$("qzone-liked").textContent=Number(q.liked||0).toLocaleString();$("qzone-failed").textContent="失败 "+Number(q.failed||0);$("qzone-friends").textContent=Number(q.friend_count||0).toLocaleString();$("qzone-last-scan").textContent="上次扫描："+(q.last_scan||"尚未扫描");$("qzone-mode").textContent=!q.enabled?"未启用":q.dry_run?"只读测试":"真实点赞";$("qzone-mode").className="pill"+(q.enabled?(q.dry_run?" warn":" on"):"");$("qzone-scan").disabled=busy||!ready||!q.enabled;const details=$("qzone-details");details.replaceChildren();for(const [label,value] of [["后台任务",q.running?"运行中":"未运行"],["已初始化来源",q.initialized_count||0],["只读测试计数",q.dry_count||0],["暂停剩余",(q.suspended_seconds||0)+" 秒"],["最近错误",q.last_error||"无"]]){const row=el("div",undefined,"stat-line");row.append(el("span",label),el("strong",value));details.append(row);}}
+  async function loadState(){if(!ready)return false;try{state=unwrap(await bridge.apiGet(ROUTES.state));if(!state?.settings||!state?.runtime)throw Error("控制中心返回数据格式不正确");fillSettings();renderOverview();renderRequests();renderQzone();renderPokeRanks();return true;}catch(e){notify("读取控制中心失败："+errorText(e),true);$("plugin-status").textContent="连接失败";return false;}}
+  function table(panel,headers,rows,empty){if(!rows.length){panel.replaceChildren(el("div",empty,"empty"));return;}const t=el("table"),h=el("thead"),r=el("tr");for(const title of headers)r.append(el("th",title));h.append(r);const b=el("tbody");for(const cells of rows){const tr=el("tr");for(const cell of cells){const td=el("td");if(cell instanceof Node)td.append(cell);else td.textContent=String(cell??"—");tr.append(td);}b.append(tr);}t.append(h,b);panel.replaceChildren(t);}
+  function action(label,key,id,danger=false){const b=el("button",label,"text-btn"+(danger?" danger":""));b.type="button";b.dataset[key]=id;return b;}
+  function renderMilestones(){if(!milestoneState)return;const g=$("milestone-global");g.checked=milestoneState.enabled;g.disabled=busy||!state?.runtime?.poke_milestones_available;$("milestone-add").disabled=busy||!state?.runtime?.poke_milestones_available;$("milestone-hint").textContent=milestoneState.enabled?"已开启；命中启用规则时会尝试执行禁言。":"已关闭；不会自动禁言。";const labels={success:"成功",failed:"失败",unknown:"未知",pending:"执行中"};table($("milestone-rules"),["规则名称","目标次数","禁言","LLM 回复","状态","操作"],milestoneState.rules.map(r=>{const actions=el("div",undefined,"actions");actions.append(action("编辑","edit",r.id),action(r.enabled?"停用":"启用","toggle",r.id),action("删除","delete",r.id,true));return [r.name,r.target+" 次（±"+r.tolerance+"）",r.mute_minutes+" 分钟",r.llm_enabled?"开启":"关闭",r.enabled?"启用":"停用",actions];}),"暂无规则。点击“新增规则”创建第一条规则。");table($("milestone-history"),["时间","群 / 用户","规则","触发次数","结果","说明"],milestoneState.history.slice(0,100).map(h=>[String(h.created_at||"—").replace("T"," ").slice(0,19),(h.group_id||"—")+" / "+(h.user_id||"—"),h.rule_name||h.rule_id||"—",h.count==null?"—":h.count+" 次",labels[h.status]||"未知",h.detail||"—"]),"暂无执行记录。");}
+  async function loadMilestones(){try{milestoneState=unwrap(await bridge.apiGet(ROUTES.milestones));if(!milestoneState||typeof milestoneState.enabled!=="boolean"||!Array.isArray(milestoneState.rules)||!Array.isArray(milestoneState.history))throw Error("里程碑数据格式错误");renderMilestones();return true;}catch(e){$("milestone-hint").textContent="里程碑 API 不可用："+errorText(e);$("milestone-rules").replaceChildren(el("div","里程碑数据不可用，请检查插件日志。","empty"));$("milestone-history").replaceChildren(el("div","执行记录不可用。","empty"));return false;}}
+  async function milestoneWrite(route,payload,success){if(busy)return;setBusy(true);try{const value=unwrap(await bridge.apiPost(route,payload));if(value?.status==="error")throw Error(value.message||"操作失败");milestoneState=value;renderMilestones();notify(success);}catch(e){renderMilestones();notify("里程碑操作失败："+errorText(e),true);}finally{setBusy(false);}}
+  $("milestone-global").addEventListener("change",e=>{const enabled=e.target.checked;if(enabled&&!confirm("开启后可能在 QQ 群内自动禁言成员。请确认已检查规则和 Bot 管理权限。")){e.target.checked=false;return;}milestoneWrite(ROUTES.milestoneSettings,{enabled,confirm_side_effects:enabled},enabled?"里程碑自动禁言已开启。":"里程碑自动禁言已关闭。");});
+  function openMilestone(rule){milestoneForm.reset();const f=milestoneForm.elements;for(const [k,v] of Object.entries({id:rule?.id||"",name:rule?.name||"",target:rule?.target??30,tolerance:rule?.tolerance??2,mute_minutes:rule?.mute_minutes??1,prompt:rule?.prompt||""}))f[k].value=v;f.enabled.checked=rule?.enabled!==false;f.llm_enabled.checked=rule?.llm_enabled===true;$("milestone-dialog-title").textContent=rule?"编辑里程碑规则":"新增里程碑规则";$("milestone-form-error").hidden=true;dialog.showModal();}
+  $("milestone-add").addEventListener("click",()=>openMilestone(null));$("milestone-close").addEventListener("click",()=>dialog.close());$("milestone-cancel").addEventListener("click",()=>dialog.close());
+  milestoneForm.addEventListener("submit",e=>{e.preventDefault();if(!milestoneForm.reportValidity())return;const f=milestoneForm.elements,payload={name:f.name.value.trim(),target:Number(f.target.value),tolerance:Number(f.tolerance.value),mute_minutes:Number(f.mute_minutes.value),enabled:f.enabled.checked,llm_enabled:f.llm_enabled.checked,prompt:f.prompt.value.trim()};if(f.id.value)payload.id=f.id.value;if(milestoneState?.enabled&&payload.enabled){if(!confirm("当前里程碑总开关已开启，保存启用状态的规则后可能立即触发群禁言。确认继续吗？"))return;payload.confirm_side_effects=true;}setBusy(true);bridge.apiPost(ROUTES.saveRule,payload).then(value=>{milestoneState=unwrap(value);renderMilestones();dialog.close();notify("里程碑规则已保存。");}).catch(e=>{$("milestone-form-error").textContent="保存失败："+errorText(e);$("milestone-form-error").hidden=false;}).finally(()=>setBusy(false));});
+  $("milestone-rules").addEventListener("click",e=>{const b=e.target.closest("button");if(!b||busy)return;const id=b.dataset.edit||b.dataset.toggle||b.dataset.delete;const rule=milestoneState?.rules.find(r=>r.id===id);if(!rule)return;if(b.dataset.edit)openMilestone(rule);else if(b.dataset.toggle)(()=>{const enabled=!rule.enabled;if(enabled&&milestoneState.enabled&&!confirm("当前里程碑总开关已开启，启用此规则后可能立即触发群禁言。确认继续吗？"))return;milestoneWrite(ROUTES.toggleRule,{id,enabled,confirm_side_effects:enabled},"规则状态已更新。");})();else if(b.dataset.delete&&confirm("确定删除规则“"+rule.name+"”吗？"))milestoneWrite(ROUTES.deleteRule,{id},"规则已删除。");});
+  $("qzone-scan").addEventListener("click",async()=>{if(busy)return;const q=state?.qzone||{};if(!q.dry_run&&!confirm("当前为真实点赞模式。手动扫描可能会代表 Bot 给好友新说说点赞，确认继续吗？"))return;setBusy(true);try{const r=unwrap(await bridge.apiPost(ROUTES.scan,{confirm_side_effects:!q.dry_run}));if(r?.status==="error")throw Error(r.message||"扫描失败");state=r.state||state;renderOverview();renderQzone();renderPokeRanks();const s=r.summary||{};notify("扫描完成：新发现 "+(s.new||0)+" 条，入队 "+(s.queued||0)+" 条，尝试 "+(s.attempted||0)+" 条，成功 "+(s.liked||0)+" 条，失败 "+(s.failed||0)+" 条。");}catch(e){notify("扫描失败："+errorText(e),true);}finally{setBusy(false);}});
+  $("refresh").addEventListener("click",async()=>{if(busy)return;setBusy(true);const stateOk=await loadState();const milestonesOk=await loadMilestones();setBusy(false);if(stateOk&&milestonesOk)notify("状态已刷新。");});
+  async function boot(){if(!bridge){notify("AstrBot 页面桥接未加载，请从 AstrBot 原生插件 View 打开。",true);$("plugin-status").textContent="页面未连接";return;}try{if(typeof bridge.onContext==="function")bridge.onContext(c=>document.documentElement.dataset.theme=c?.isDark?"dark":"light");await bridge.ready();ready=true;$("refresh").disabled=false;await loadState();await loadMilestones();}catch(e){notify("页面初始化失败："+errorText(e),true);$("plugin-status").textContent="连接失败";}}
+  boot();
+})();
+</script>
+</body>
+</html>

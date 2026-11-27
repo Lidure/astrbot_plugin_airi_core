@@ -145,6 +145,36 @@ class RequestApprovalManagerTests(unittest.TestCase):
             self.assertEqual(incoming.bot.friend_calls, [("friend-flag", True)])
             self.assertIsNone(manager.store.get("A001"))
 
+    def test_authenticated_web_review_uses_onebot_client_without_spoofing_chat_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = RequestApprovalManager(Path(tmp) / "pending_requests.json")
+            incoming = FakeEvent({
+                "post_type": "request", "request_type": "friend",
+                "flag": "friend-flag", "user_id": 12345,
+            })
+            asyncio.run(manager.handle_request(incoming, auto_accept_friend=False, approval_enabled=True, approval_qq="90001"))
+            text = asyncio.run(manager.review_from_web("A001", approve=True, client=incoming.bot))
+            self.assertIn("已同意好友申请 A001", text)
+            self.assertEqual(incoming.bot.friend_calls, [("friend-flag", True)])
+            self.assertIsNone(manager.store.get("A001"))
+
+    def test_web_review_failure_keeps_request_for_retry(self):
+        class FailingBot(FakeBot):
+            async def set_group_add_request(self, *, flag, sub_type, approve):
+                raise RuntimeError("boom")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = RequestApprovalManager(Path(tmp) / "pending_requests.json")
+            incoming = FakeEvent({
+                "post_type": "request", "request_type": "group", "sub_type": "invite",
+                "flag": "group-flag", "user_id": 12345, "group_id": 54321,
+            })
+            incoming.bot = FailingBot()
+            asyncio.run(manager.handle_request(incoming, auto_accept_friend=False, approval_enabled=True, approval_qq="90001"))
+            text = asyncio.run(manager.review_from_web("A001", approve=False, client=incoming.bot))
+            self.assertIn("审批失败", text)
+            self.assertIsNotNone(manager.store.get("A001"))
+
     def test_reject_group_invite_uses_invite_subtype_and_removes_pending(self):
         with tempfile.TemporaryDirectory() as tmp:
             manager = RequestApprovalManager(Path(tmp) / "pending_requests.json")
