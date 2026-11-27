@@ -61,6 +61,10 @@ def load_main():
         def on_decorating_result(*args, **kwargs):
             return lambda func: func
 
+        @staticmethod
+        def on_llm_request(*args, **kwargs):
+            return lambda func: func
+
     class DummyStar:
         def __init__(self, *args, **kwargs):
             pass
@@ -79,6 +83,8 @@ def load_main():
     _install_stub("astrbot.core.agent.tool", FunctionTool=object)
     _install_stub("astrbot.api.message_components")
     _install_stub("avatar_rank_renderer", render_poke_rank_image=lambda *args, **kwargs: None)
+    _install_stub("group_rank_renderer", render_group_rank_image=lambda *a, **kw: None,
+                  resolve_group_display_names=lambda *a, **kw: {})
     _install_stub("friend_requests", resolve_onebot_call_action=lambda event: None)
     _install_stub("request_approval", RequestApprovalManager=object)
     _install_stub(
