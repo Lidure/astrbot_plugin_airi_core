@@ -1,7 +1,7 @@
 name: astrbot_plugin_airi_core
 display_name: Airi 核心工具🌸
-short_desc: Airi 核心辅助插件，提供跨节点 @Bot 命令免LLM、@Bot/关键词唤醒及 QQ 官Bot @ 过滤（包含/前缀匹配与白名单）、LLM 主动 @ 群友、群管理、好友/群邀请审批、入群欢迎与带 QQ 头像的 Poke 图片排行榜、戳一戳里程碑自动禁言及可选 QQ 空间好友新说说自动点赞。
-desc: Airi 核心辅助插件，支持跨 AstrBot / gscore 等 OneBot 节点的 @Bot 命令免LLM、QQ 官Bot 的自动识别与 LLM 唤醒过滤、可配置的 @Bot / QQ 群聊与私聊关键词 LLM 唤醒（包含/前缀匹配、独立开关、独立QQ群白名单/私聊QQ白名单）、LLM 按需主动 @ 群友、LLM 群禁言、OneBot/Snowluma 好友申请自动同意或指定 QQ 人工审批、群邀请人工审批、Bot 入群欢迎，以及每日 04:00 切日、带 QQ 头像的群内/全局个人 Poke 排行与跨群 Poke 日榜、历史累计榜、原生 View 管理的可选自动禁言里程碑，并支持 SnowLuma / OneBot 下限频去重的 QQ 空间好友新说说自动点赞。
-version: v1.3.30
+short_desc: Airi 核心辅助插件，提供常驻全功能可视化控制中心，统一管理 @Bot/关键词唤醒、跨节点命令免LLM、LLM群管理、好友/群邀请审批、入群欢迎、Poke排行榜与里程碑、QQ空间自动点赞。
+desc: Airi 核心辅助插件，提供常驻的 AstrBot 原生全功能可视化控制中心，统一管理跨节点 @Bot 命令免LLM、QQ官Bot唤醒过滤、群聊/私聊关键词唤醒与白名单、LLM主动@与群禁言、好友/群邀请审批、入群欢迎、Poke统计排行榜及里程碑自动禁言、QQ空间好友新说说自动点赞。控制中心默认注册并始终可见，无需额外开启 WebUI 开关。
+version: v1.4.0
 author: Lidure
 repo: https://github.com/Lidure/astrbot_plugin_airi_core

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from copy import deepcopy
 import time
 from datetime import datetime
 from pathlib import Path
@@ -21,7 +22,8 @@ if __package__:
     from .poke_milestones_web import register_milestone_routes
     from .avatar_rank_renderer import render_poke_rank_image
     from .friend_requests import resolve_onebot_call_action
-    from .config_sections import migrate as migrate_settings, option
+    from .config_sections import PATHS, migrate as migrate_settings, option
+    from .console_api import register_console_routes
     from .at_command_guard import command_reason, normalized_external_rules
     from .official_bot_filter import OfficialQQBotClassifier
     from .keyword_wakeup import (
@@ -54,7 +56,8 @@ else:
     from poke_milestones_web import register_milestone_routes
     from avatar_rank_renderer import render_poke_rank_image
     from friend_requests import resolve_onebot_call_action
-    from config_sections import migrate as migrate_settings, option
+    from config_sections import PATHS, migrate as migrate_settings, option
+    from console_api import register_console_routes
     from at_command_guard import command_reason, normalized_external_rules
     from official_bot_filter import OfficialQQBotClassifier
     from keyword_wakeup import (
@@ -379,6 +382,7 @@ class Main(Star):
         super().__init__(context)
         self.config = config if config is not None else {}
         migrate_settings(self.config)
+        self._console_settings_lock = asyncio.Lock()
 
         self.self_mention_wakeup_enabled = bool(
             option(self.config, "self_mention_wakeup_enabled", True)
@@ -451,6 +455,8 @@ class Main(Star):
             option(self.config, "poke_rank_max_limit")
         )
         self._poke_lock = asyncio.Lock()
+        self._onebot_bot = None
+        self._onebot_self_id = ""
         self._plugin_data_dir = self._get_plugin_data_dir()
         self._poke_store = PokeStatsStore(self._plugin_data_dir / "poke_stats.json")
         self._poke_milestones = None
@@ -489,6 +495,10 @@ class Main(Star):
             except ImportError:
                 self._poke_milestones = None
                 logger.warning("当前 AstrBot 缺少原生 Web API，Poke 里程碑已停用。")
+            try:
+                register_console_routes(self.context, PLUGIN_NAME, self)
+            except Exception as exc:
+                logger.exception(f"Airi 控制中心 API 注册失败：{exc}")
         logger.info(
             f"Airi 核心工具已加载 | @唤醒: {'启用' if self.self_mention_wakeup_enabled else '未启用'}"
             f" | @命令免LLM: {'启用' if self.at_command_suppress_llm_enabled else '未启用'}"
@@ -512,6 +522,221 @@ class Main(Star):
             f" / {'只读测试' if self._qzone_liker.dry_run else '实际点赞'}"
             " | Poke日榜切日: 04:00"
         )
+
+    def console_state(self) -> dict[str, Any]:
+        """Return a sanitized snapshot for the authenticated control-center view."""
+        settings = {
+            key: deepcopy(option(self.config, key, default))
+            for key, default in {
+                "self_mention_wakeup_enabled": True,
+                "at_command_suppress_llm_enabled": True,
+                "at_command_external_rules": [],
+                "ignore_official_qq_bots_enabled": True,
+                "keyword_wakeup_enabled": False,
+                "keyword_wakeup_private_enabled": False,
+                "keyword_wakeup_words": [],
+                "keyword_wakeup_mode": "contains",
+                "keyword_wakeup_group_whitelist": [],
+                "keyword_wakeup_user_whitelist": [],
+                "mention_tool_enabled": True,
+                "mute_tool_enabled": False,
+                "mute_duration_min": 1,
+                "mute_duration_max": 10,
+                "welcome_enabled": False,
+                "welcome_message": "你好！我是 Airi，很高兴加入这个群聊！",
+                "welcome_images": [],
+                "auto_accept_friend_request": False,
+                "request_approval_enabled": False,
+                "request_approval_qq": "",
+                "poke_stats_enabled": True,
+                "poke_rank_max_limit": 100,
+                "qzone_auto_like_enabled": False,
+                "qzone_poll_interval_sec": 300,
+                "qzone_max_likes_per_cycle": 3,
+                "qzone_dry_run": False,
+                "qzone_owner_qq": "",
+                "qzone_friend_batch_size": 8,
+                "qzone_feed_count": 30,
+                "qzone_delay_min_sec": 15,
+                "qzone_delay_max_sec": 30,
+            }.items()
+        }
+        groups = self._poke_store.data.get("groups", {})
+        daily = self._poke_store.data.get("daily", {})
+        total_pokes = sum(
+            max(0, int(group.get("total", 0)))
+            for group in groups.values() if isinstance(group, dict)
+        ) if isinstance(groups, dict) else 0
+        user_ids = set()
+        if isinstance(groups, dict):
+            for group in groups.values():
+                if isinstance(group, dict) and isinstance(group.get("users", {}), dict):
+                    user_ids.update(str(user_id) for user_id in group["users"])
+        user_count = len(user_ids)
+        daily_groups = daily.get("groups", {}) if isinstance(daily, dict) else {}
+        daily_pokes = sum(
+            max(0, int(group.get("total", 0)))
+            for group in daily_groups.values() if isinstance(group, dict)
+        ) if isinstance(daily_groups, dict) else 0
+
+        liker = self._qzone_liker
+        qzone = {
+            "enabled": bool(liker.enabled),
+            "dry_run": bool(liker.dry_run),
+            "running": bool(liker._task is not None and not liker._task.done()),
+            "friend_count": len(liker._friends),
+            "seen_count": len(liker._state.get("seen", {})),
+            "pending_count": len(liker._state.get("pending", [])),
+            "initialized_count": len(liker._state.get("initialized", [])),
+            "liked": int(liker._liked),
+            "failed": int(liker._failed),
+            "dry_count": int(liker._dry_count),
+            "last_scan": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(liker._last_scan)) if liker._last_scan else "尚未扫描",
+            "last_error": str(liker._last_error or ""),
+            "suspended_seconds": max(0, int(liker._suspended_until - time.time())),
+        }
+        requests = getattr(self._request_approval.store, "_data", {}).get("requests", {})
+        pending_requests = []
+        if isinstance(requests, dict):
+            for request_id, item in sorted(
+                requests.items(), key=lambda pair: str(pair[1].get("created_at", "")) if isinstance(pair[1], dict) else "", reverse=True
+            )[:50]:
+                if not isinstance(item, dict):
+                    continue
+                pending_requests.append({
+                    "request_id": str(request_id),
+                    "kind": str(item.get("kind", "")),
+                    "user_id": str(item.get("user_id", "")),
+                    "nickname": str(item.get("nickname", "")),
+                    "group_id": str(item.get("group_id", "")),
+                    "group_name": str(item.get("group_name", "")),
+                    "comment": str(item.get("comment", "")),
+                    "created_at": str(item.get("created_at", "")),
+                })
+        daily_users = self._poke_store.daily_global_summary().get("entries", [])[:10]
+        history_users = self._poke_store.global_summary().get("entries", [])[:10]
+        daily_groups = self._poke_store.daily_group_leaderboard().get("entries", [])[:10]
+        history_groups = self._poke_store.historical_group_leaderboard().get("entries", [])[:10]
+        mask_user = lambda uid: "用户…" + str(uid)[-4:]
+        return {
+            "settings": settings,
+            "poke_ranks": {
+                "daily_users": [{"label": mask_user(uid), "count": count} for uid, count in daily_users],
+                "history_users": [{"label": mask_user(uid), "count": count} for uid, count in history_users],
+                "daily_groups": [{"label": str(gid), "count": count} for gid, count in daily_groups],
+                "history_groups": [{"label": str(gid), "count": count} for gid, count in history_groups],
+            },
+            "runtime": {
+                "plugin_loaded": True,
+                "onebot_client_available": self._onebot_bot is not None,
+                "poke_stats_enabled": bool(self.poke_stats_enabled),
+                "poke_milestones_available": self._poke_milestones is not None,
+                "mention_tool_enabled": bool(self.mention_tool_enabled),
+                "mute_tool_enabled": bool(self.mute_tool_enabled),
+            },
+            "stats": {
+                "total_pokes": total_pokes,
+                "daily_pokes": daily_pokes,
+                "group_count": len(groups) if isinstance(groups, dict) else 0,
+                "user_count": user_count,
+                "updated_at": self._poke_store.data.get("meta", {}).get("updated_at"),
+                "stats_day": daily.get("key") if isinstance(daily, dict) else None,
+            },
+            "qzone": qzone,
+            "pending_requests": pending_requests,
+        }
+
+    def _set_console_config_value(self, key: str, value: Any) -> None:
+        path = PATHS[key]
+        target = self.config
+        for part in path[:-1]:
+            child = target.get(part)
+            if not isinstance(child, dict):
+                child = {}
+                target[part] = child
+            target = child
+        target[path[-1]] = deepcopy(value)
+
+    async def _set_console_tool(self, name: str, enabled: bool, factory) -> None:
+        getter = getattr(self.context, "get_llm_tool_manager", None)
+        manager = getter() if callable(getter) else None
+        tools = getattr(manager, "func_list", [])
+        exists = any(getattr(tool, "name", None) == name for tool in tools)
+        if enabled and not exists:
+            self.context.add_llm_tools(factory(plugin=self))
+        elif enabled:
+            activate = getattr(self.context, "activate_llm_tool_async", None)
+            if callable(activate):
+                await activate(name)
+        elif exists:
+            deactivate = getattr(self.context, "deactivate_llm_tool_async", None)
+            if callable(deactivate):
+                await deactivate(name)
+
+    async def update_console_settings(self, updates: dict[str, Any]) -> None:
+        """Persist a validated partial update and apply settings to the live instance."""
+        async with self._console_settings_lock:
+            previous_mention = self.mention_tool_enabled
+            previous_mute = self.mute_tool_enabled
+            for key, value in updates.items():
+                if key not in PATHS:
+                    raise ValueError(f"不支持的设置项：{key}")
+                self._set_console_config_value(key, value)
+
+            save_async = getattr(self.config, "save_config_async", None)
+            if callable(save_async):
+                saved = await save_async()
+                if saved is False:
+                    raise OSError("配置保存未提交，请稍后重试")
+            else:
+                save = getattr(self.config, "save_config", None)
+                if callable(save):
+                    await asyncio.to_thread(save)
+
+            self.self_mention_wakeup_enabled = bool(option(self.config, "self_mention_wakeup_enabled", True))
+            self.at_command_suppress_llm_enabled = bool(option(self.config, "at_command_suppress_llm_enabled", True))
+            self.at_command_external_rules = normalized_external_rules(option(self.config, "at_command_external_rules", []))
+            self.ignore_official_qq_bots_enabled = bool(option(self.config, "ignore_official_qq_bots_enabled", True))
+            self.keyword_wakeup_enabled = bool(option(self.config, "keyword_wakeup_enabled", False))
+            self.keyword_wakeup_private_enabled = bool(option(self.config, "keyword_wakeup_private_enabled", False))
+            self.keyword_wakeup_words = normalize_keywords(option(self.config, "keyword_wakeup_words", []))
+            self.keyword_wakeup_mode = str(option(self.config, "keyword_wakeup_mode", "contains") or "contains").strip().lower()
+            if self.keyword_wakeup_mode not in {"contains", "prefix"}:
+                self.keyword_wakeup_mode = "contains"
+            self.keyword_wakeup_group_whitelist = normalize_allowlist(option(self.config, "keyword_wakeup_group_whitelist", []))
+            self.keyword_wakeup_private_whitelist = normalize_allowlist(option(self.config, "keyword_wakeup_user_whitelist", []))
+            self.mention_tool_enabled = bool(option(self.config, "mention_tool_enabled", True))
+            self.mute_tool_enabled = bool(option(self.config, "mute_tool_enabled", False))
+            self.mute_duration_min = max(1, min(60, int(option(self.config, "mute_duration_min", 1))))
+            self.mute_duration_max = max(1, min(43200, int(option(self.config, "mute_duration_max", 10))))
+            if self.mute_duration_min > self.mute_duration_max:
+                self.mute_duration_min, self.mute_duration_max = self.mute_duration_max, self.mute_duration_min
+            self.welcome_enabled = bool(option(self.config, "welcome_enabled", False))
+            self.welcome_message = str(option(self.config, "welcome_message", "") or "")
+            self.auto_accept_friend_request = bool(option(self.config, "auto_accept_friend_request", False))
+            self.request_approval_enabled = bool(option(self.config, "request_approval_enabled", False))
+            self.request_approval_qq = str(option(self.config, "request_approval_qq", "") or "").strip()
+            self.poke_stats_enabled = bool(option(self.config, "poke_stats_enabled", True))
+            self.poke_rank_max_limit = normalize_rank_max_limit(option(self.config, "poke_rank_max_limit", 100))
+            self.qzone_owner_qq = str(option(self.config, "qzone_owner_qq", "") or "").strip()
+
+            liker = self._qzone_liker
+            liker.dry_run = bool(option(self.config, "qzone_dry_run", False))
+            liker.interval = max(120, int(option(self.config, "qzone_poll_interval_sec", 300)))
+            liker.batch_size = max(0, min(20, int(option(self.config, "qzone_friend_batch_size", 8))))
+            liker.feed_count = max(10, min(60, int(option(self.config, "qzone_feed_count", 30))))
+            liker.max_likes = max(1, min(10, int(option(self.config, "qzone_max_likes_per_cycle", 3))))
+            liker.delay_min = max(0, min(120, int(option(self.config, "qzone_delay_min_sec", 15))))
+            liker.delay_max = max(liker.delay_min, min(180, int(option(self.config, "qzone_delay_max_sec", 30))))
+            if bool(option(self.config, "qzone_auto_like_enabled", False)):
+                liker.start()
+            else:
+                liker.stop()
+
+            if previous_mention != self.mention_tool_enabled:
+                await self._set_console_tool("mention_user", self.mention_tool_enabled, MentionTool)
+            if previous_mute != self.mute_tool_enabled:
+                await self._set_console_tool("group_mute", self.mute_tool_enabled, MuteTool)
 
     async def terminate(self):
         await self._qzone_liker.close()
@@ -922,7 +1147,10 @@ class Main(Star):
 
     @filter.platform_adapter_type("aiocqhttp")
     async def on_qzone_capture(self, event: AstrMessageEvent):
-        """从 OneBot 消息捕获账号，并按需启动空间点赞任务。"""
+        """捕获当前 OneBot 客户端，供空间扫描与 WebUI 审批操作复用。"""
+        self._onebot_bot = getattr(event, "bot", None)
+        get_self_id = getattr(event, "get_self_id", None)
+        self._onebot_self_id = str(get_self_id() or "") if callable(get_self_id) else ""
         if self._qzone_liker.enabled:
             self._qzone_liker.attach_bot(
                 getattr(event, "bot", None), str(event.get_self_id() or "")
@@ -979,6 +1207,9 @@ class Main(Star):
     @filter.platform_adapter_type("aiocqhttp")
     async def on_request(self, event: AstrMessageEvent):
         """处理好友申请与邀请 Bot 入群的请求事件。"""
+        self._onebot_bot = getattr(event, "bot", None)
+        get_self_id = getattr(event, "get_self_id", None)
+        self._onebot_self_id = str(get_self_id() or "") if callable(get_self_id) else ""
         result = await self._request_approval.handle_request(
             event,
             auto_accept_friend=self.auto_accept_friend_request,
