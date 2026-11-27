@@ -1,7 +1,17 @@
+import ast
 import asyncio
+from copy import deepcopy
 import unittest
+from pathlib import Path
+from typing import Any
 
-from main import Main
+from at_command_guard import normalized_external_rules
+from config_sections import PATHS, option
+from keyword_wakeup import normalize_allowlist, normalize_keywords
+from poke_rank_options import normalize_rank_max_limit
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class Config(dict):
@@ -12,6 +22,20 @@ class Config(dict):
     async def save_config_async(self):
         self.saved = True
         return True
+
+
+class Tool:
+    def __init__(self, plugin=None):
+        self.plugin = plugin
+        self.name = self.tool_name
+
+
+class MentionTool(Tool):
+    tool_name = "mention_user"
+
+
+class MuteTool(Tool):
+    tool_name = "group_mute"
 
 
 class ToolManager:
@@ -63,9 +87,39 @@ class Liker:
 
 
 class ConsoleRuntimeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        source = (ROOT / "main.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        main_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Main")
+        names = {"_set_console_config_value", "_set_console_tool", "update_console_settings"}
+        methods = [node for node in main_class.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in names]
+        namespace = {
+            "Any": Any,
+            "asyncio": asyncio,
+            "deepcopy": deepcopy,
+            "PATHS": PATHS,
+            "option": option,
+            "normalized_external_rules": normalized_external_rules,
+            "normalize_keywords": normalize_keywords,
+            "normalize_allowlist": normalize_allowlist,
+            "normalize_rank_max_limit": normalize_rank_max_limit,
+            "MentionTool": MentionTool,
+            "MuteTool": MuteTool,
+        }
+        module = ast.Module(body=methods, type_ignores=[])
+        exec(compile(module, str(ROOT / "main.py"), "exec"), namespace)
+
+        class Harness:
+            _set_console_config_value = namespace["_set_console_config_value"]
+            _set_console_tool = namespace["_set_console_tool"]
+            update_console_settings = namespace["update_console_settings"]
+
+        cls.harness_type = Harness
+
     def test_saved_settings_apply_immediately_to_runtime_and_tools(self):
         async def run():
-            plugin = Main.__new__(Main)
+            plugin = self.harness_type()
             plugin.config = Config()
             plugin._console_settings_lock = asyncio.Lock()
             plugin.context = Context()
