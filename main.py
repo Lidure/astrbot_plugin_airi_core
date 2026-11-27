@@ -23,7 +23,7 @@ if __package__:
     from .avatar_rank_renderer import render_poke_rank_image
     from .friend_requests import resolve_onebot_call_action
     from .config_sections import PATHS, migrate as migrate_settings, option
-    from .console_api import register_console_routes
+    from .console_api import ConsolePokeRanks, register_console_routes
     from .at_command_guard import command_reason, normalized_external_rules
     from .official_bot_filter import OfficialQQBotClassifier
     from .keyword_wakeup import (
@@ -57,7 +57,7 @@ else:
     from avatar_rank_renderer import render_poke_rank_image
     from friend_requests import resolve_onebot_call_action
     from config_sections import PATHS, migrate as migrate_settings, option
-    from console_api import register_console_routes
+    from console_api import ConsolePokeRanks, register_console_routes
     from at_command_guard import command_reason, normalized_external_rules
     from official_bot_filter import OfficialQQBotClassifier
     from keyword_wakeup import (
@@ -459,6 +459,7 @@ class Main(Star):
         self._onebot_self_id = ""
         self._plugin_data_dir = self._get_plugin_data_dir()
         self._poke_store = PokeStatsStore(self._plugin_data_dir / "poke_stats.json")
+        self._console_poke_ranks = ConsolePokeRanks()
         self._poke_milestones = None
         self._request_approval = RequestApprovalManager(
             self._plugin_data_dir / "pending_requests.json"
@@ -613,19 +614,9 @@ class Main(Star):
                     "comment": str(item.get("comment", "")),
                     "created_at": str(item.get("created_at", "")),
                 })
-        daily_users = self._poke_store.daily_global_summary().get("entries", [])[:10]
-        history_users = self._poke_store.global_summary().get("entries", [])[:10]
-        daily_groups = self._poke_store.daily_group_leaderboard().get("entries", [])[:10]
-        history_groups = self._poke_store.historical_group_leaderboard().get("entries", [])[:10]
-        mask_user = lambda uid: "用户…" + str(uid)[-4:]
         return {
             "settings": settings,
-            "poke_ranks": {
-                "daily_users": [{"label": mask_user(uid), "count": count} for uid, count in daily_users],
-                "history_users": [{"label": mask_user(uid), "count": count} for uid, count in history_users],
-                "daily_groups": [{"label": str(gid), "count": count} for gid, count in daily_groups],
-                "history_groups": [{"label": str(gid), "count": count} for gid, count in history_groups],
-            },
+            "poke_ranks": self._console_poke_ranks.snapshot(self._poke_store),
             "runtime": {
                 "plugin_loaded": True,
                 "onebot_client_available": self._onebot_bot is not None,
@@ -645,6 +636,15 @@ class Main(Star):
             "qzone": qzone,
             "pending_requests": pending_requests,
         }
+
+    async def console_poke_ranks(self) -> dict[str, Any]:
+        bot = self._onebot_bot
+        call_action = getattr(bot, "call_action", None)
+        if not callable(call_action):
+            call_action = getattr(getattr(bot, "api", None), "call_action", None)
+        return await self._console_poke_ranks.refresh(
+            self._poke_store, call_action, self_id=self._onebot_self_id
+        )
 
     def _set_console_config_value(self, key: str, value: Any) -> None:
         path = PATHS[key]

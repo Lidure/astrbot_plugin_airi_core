@@ -3,12 +3,17 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from typing import Any
 
 if __package__:
     from .config_sections import PATHS
+    from .poke_stats import extract_onebot_profile_name
+    from .group_rank_renderer import extract_onebot_group_names
 else:
     from config_sections import PATHS
+    from poke_stats import extract_onebot_profile_name
+    from group_rank_renderer import extract_onebot_group_names
 
 
 EDITABLE_KEYS = frozenset(PATHS) - {"welcome_images"}
@@ -35,6 +40,92 @@ INT_RANGES = {
     "qzone_delay_max_sec": (0, 180),
 }
 QQ_KEYS = frozenset({"request_approval_qq", "qzone_owner_qq"})
+
+
+class ConsolePokeRanks:
+    """Administrator-only rank identities; never change the public chat images.
+
+    Return counts and full IDs immediately. Resolve only the displayed names
+    lazily, with bounded concurrency and per-call timeout; stale names survive
+    transient failures and missing names are retried after a short cooldown.
+    """
+
+    def __init__(self, *, request_timeout: float = 1.5):
+        self._cache: dict[tuple[str, str], tuple[str, float]] = {}
+        self._lock = asyncio.Lock()
+        self._request_timeout = request_timeout
+
+    def snapshot(self, store) -> dict[str, list[dict[str, Any]]]:
+        result = {}
+        for key, kind, summary in (
+            ("daily_users", "user", store.daily_global_summary()),
+            ("history_users", "user", store.global_summary()),
+            ("daily_groups", "group", store.daily_group_leaderboard()),
+            ("history_groups", "group", store.historical_group_leaderboard()),
+        ):
+            result[key] = [
+                {"id": str(identity), "name": self._cache.get((kind, str(identity)), ("", 0))[0], "count": count}
+                for identity, count in summary.get("entries", [])[:10]
+            ]
+        return result
+
+    def _remember(self, kind: str, identity: str, name: str) -> None:
+        key = (kind, identity)
+        previous = self._cache.pop(key, ("", 0))[0]
+        self._cache[key] = (name or previous, time.monotonic() + (3600 if name else 60))
+        while len(self._cache) > 256:
+            self._cache.pop(next(iter(self._cache)))
+
+    async def refresh(self, store, call_action, *, self_id: str = ""):
+        if not callable(call_action):
+            return self.snapshot(store)
+        async with self._lock:
+            current = self.snapshot(store)
+            now = time.monotonic()
+            def missing(keys, kind):
+                return list(dict.fromkeys(
+                    row["id"] for key in keys for row in current[key]
+                    if row["id"].isascii() and row["id"].isdigit()
+                    and self._cache.get((kind, row["id"]), ("", 0))[1] <= now
+                ))
+
+            users = missing(("daily_users", "history_users"), "user")
+            groups = missing(("daily_groups", "history_groups"), "group")
+            semaphore = asyncio.Semaphore(5)
+
+            async def query(action, **params):
+                try:
+                    if self_id:
+                        params["self_id"] = self_id
+                    async with semaphore:
+                        payload = await asyncio.wait_for(call_action(action, **params), self._request_timeout)
+                    if isinstance(payload, dict) and (
+                        payload.get("status") == "failed" or payload.get("retcode", 0) not in (0, None)
+                    ):
+                        return None
+                    return payload
+                except Exception:
+                    return None
+
+            async def user_name(identity):
+                payload = await query("get_stranger_info", user_id=int(identity), no_cache=False)
+                data = payload.get("data", payload) if isinstance(payload, dict) else getattr(payload, "data", None)
+                if isinstance(data, dict) and (
+                    data.get("user_id") is None or str(data["user_id"]) == identity
+                ):
+                    self._remember("user", identity, extract_onebot_profile_name(payload, prefer_card=False))
+                else:
+                    self._remember("user", identity, "")
+
+            async def group_names():
+                if not groups:
+                    return
+                names = extract_onebot_group_names(await query("get_group_list"))
+                for identity in groups:
+                    self._remember("group", identity, names.get(identity, ""))
+
+            await asyncio.gather(group_names(), *(user_name(identity) for identity in users))
+            return self.snapshot(store)
 
 
 def _error(web: Any, message: str, status: int = 400):
@@ -150,6 +241,12 @@ def register_console_routes(context, plugin_name: str, plugin, *, web=None) -> N
         except Exception:
             return _error(web, "读取 Airi 控制中心状态失败，请检查插件日志。", 500)
 
+    async def poke_ranks():
+        try:
+            return web.json_response(await plugin.console_poke_ranks())
+        except Exception:
+            return _error(web, "读取 Poke 排行失败，请稍后刷新。", 500)
+
     async def settings():
         payload = await web.request.json(default=None)
         if not isinstance(payload, dict) or set(payload) - {"settings", "confirm_side_effects"}:
@@ -222,6 +319,7 @@ def register_console_routes(context, plugin_name: str, plugin, *, web=None) -> N
 
     for path, handler, method, description in (
         ("console/state", state, "GET", "读取 Airi 控制中心配置、统计与运行状态"),
+        ("console/poke-ranks", poke_ranks, "GET", "读取排行昵称、完整 QQ 号与群号"),
         ("console/settings", settings, "POST", "保存并应用 Airi Core 可视化设置"),
         ("console/requests/review", request_review, "POST", "通过控制台审批好友申请或群邀请"),
         ("console/qzone/scan", qzone_scan, "POST", "手动扫描 QQ 空间好友新说说"),

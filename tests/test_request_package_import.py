@@ -83,6 +83,7 @@ class RequestApprovalPackageImportTests(unittest.TestCase):
                 f"{package_name}.group_rank_renderer",
                 render_group_rank_image=lambda *args, **kwargs: None,
                 resolve_group_display_names=lambda *args, **kwargs: {},
+                extract_onebot_group_names=lambda payload: {},
             )
             _install_stub(
                 f"{package_name}.avatar_rank_renderer",

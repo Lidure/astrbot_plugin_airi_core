@@ -72,6 +72,13 @@ class AiriControlCenterViewTests(unittest.TestCase):
         self.assertNotIn("type", scripts[0])
         self.assertTrue(any("src" not in script for script in scripts[1:]))
 
+    def test_poke_rank_page_displays_names_and_full_identifiers(self):
+        self.assertIn('console/poke-ranks', self.source)
+        self.assertIn('QQ 昵称', self.source)
+        self.assertIn('QQ 号', self.source)
+        self.assertIn('群名称', self.source)
+        self.assertNotIn('QQ 号做脱敏展示', self.source)
+
     def test_no_separate_poke_only_view_remains(self):
         old_view = VIEW.parents[1] / "poke-milestones"
         self.assertFalse(old_view.exists())
