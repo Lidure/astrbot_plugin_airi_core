@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,8 @@ from astrbot.core.agent.tool import FunctionTool
 import astrbot.api.message_components as Comp
 
 if __package__:
+    from .poke_milestones import PokeMilestoneStore
+    from .poke_milestones_web import register_milestone_routes
     from .avatar_rank_renderer import render_poke_rank_image
     from .friend_requests import resolve_onebot_call_action
     from .config_sections import migrate as migrate_settings, option
@@ -47,6 +50,8 @@ if __package__:
         parse_bot_poke_notice,
     )
 else:
+    from poke_milestones import PokeMilestoneStore
+    from poke_milestones_web import register_milestone_routes
     from avatar_rank_renderer import render_poke_rank_image
     from friend_requests import resolve_onebot_call_action
     from config_sections import migrate as migrate_settings, option
@@ -80,6 +85,101 @@ else:
 
 
 PLUGIN_NAME = "astrbot_plugin_airi_core"
+
+
+def _onebot_ok(response):
+    return (isinstance(response, dict) and response.get("status") == "ok"
+            and type(response.get("retcode")) is int and response["retcode"] == 0)
+
+
+def _onebot_failed(response):
+    return (isinstance(response, dict) and response.get("status") == "failed"
+            and type(response.get("retcode")) is int and response["retcode"] not in (0, 1))
+
+
+async def _poke_mute_target(call, group_id, user_id, self_id):
+    """Check both roles in a fresh roster; incomplete identities are denied."""
+    try:
+        members = await asyncio.wait_for(call(
+            "get_group_member_list", group_id=int(group_id), self_id=self_id, no_cache=True
+        ), timeout=8)
+        if isinstance(members, dict):
+            if not _onebot_ok(members):
+                return None
+            members = members.get("data")
+        if not isinstance(members, list) or user_id == self_id:
+            return None
+        matches = {}
+        for member in members:
+            if not isinstance(member, dict):
+                continue
+            uid = str(member.get("user_id"))
+            if uid not in (self_id, user_id):
+                continue
+            if str(member.get("group_id")) != group_id or uid in matches:
+                return None
+            matches[uid] = member
+        bot_member, target = matches.get(self_id), matches.get(user_id)
+        if not bot_member or not target:
+            return None
+        bot_role, target_role = bot_member.get("role"), target.get("role")
+        if bot_role in ("owner", "admin") and (
+            target_role == "member" or (bot_role == "owner" and target_role == "admin")
+        ):
+            return target
+    except Exception as exc:
+        logger.debug(f"Poke 里程碑未取得群角色：{type(exc).__name__}")
+    return None
+
+
+async def _confirm_poke_mute(call, group_id, user_id, self_id, prior_until, expected_until):
+    """aiocqhttp strips status/retcode; confirm an empty acknowledgement by reading back."""
+    if type(prior_until) is not int:
+        return False
+    try:
+        info = await asyncio.wait_for(call(
+            "get_group_member_info", group_id=int(group_id), user_id=int(user_id),
+            self_id=self_id, no_cache=True
+        ), timeout=8)
+        if isinstance(info, dict) and ("status" in info or "retcode" in info or "data" in info):
+            if not _onebot_ok(info):
+                return False
+            info = info.get("data")
+        if (not isinstance(info, dict) or str(info.get("group_id")) != group_id
+                or str(info.get("user_id")) != user_id):
+            return False
+        until = info.get("shut_up_timestamp")
+        # Check for a changed expiry near the requested deadline, allowing
+        # for integer timestamps and the bounded dispatch/readback latency.
+        return (type(until) is int and until != prior_until
+                and expected_until - 3 <= until <= expected_until + 16)
+    except Exception:
+        return False
+
+
+async def _send_poke_mute(call, group_id, user_id, self_id, minutes, prior_until):
+    expected_until = int(time.time()) + minutes * 60
+    try:
+        result = await asyncio.wait_for(call(
+            "set_group_ban", group_id=int(group_id), user_id=int(user_id),
+            self_id=self_id, duration=minutes * 60
+        ), timeout=8)
+    except Exception as exc:
+        # aiocqhttp ActionFailed contains the original explicit OneBot failure.
+        # Network errors and timeouts cannot prove that the action did not happen.
+        response = getattr(exc, "result", None)
+        if type(exc).__name__ == "ActionFailed" and _onebot_failed(response):
+            return "failed", f"OneBot 拒绝请求（{response.get('retcode', '未知')}）"
+        return "unknown", f"未收到明确回执（{type(exc).__name__}）"
+    if _onebot_ok(result):
+        return "success", ""
+    if _onebot_failed(result):
+        return "failed", f"OneBot 拒绝请求（{result.get('retcode', '未知')}）"
+    if result is None or result == {}:
+        if await _confirm_poke_mute(call, group_id, user_id, self_id, prior_until, expected_until):
+            return "success", ""
+        return "unknown", "空回执，未能通过只读查询确认禁言"
+    return "unknown", "未识别或未完成的 OneBot 回执"
 
 
 def _get_llm_event(context: Any) -> AstrMessageEvent | None:
@@ -353,6 +453,7 @@ class Main(Star):
         self._poke_lock = asyncio.Lock()
         self._plugin_data_dir = self._get_plugin_data_dir()
         self._poke_store = PokeStatsStore(self._plugin_data_dir / "poke_stats.json")
+        self._poke_milestones = None
         self._request_approval = RequestApprovalManager(
             self._plugin_data_dir / "pending_requests.json"
         )
@@ -376,6 +477,18 @@ class Main(Star):
             self.context.add_llm_tools(MuteTool(plugin=self))
 
     async def initialize(self):
+        if callable(getattr(self.context, "register_web_api", None)):
+            try:
+                self._poke_milestones = await asyncio.to_thread(
+                    PokeMilestoneStore, self._plugin_data_dir / "poke_milestones.json"
+                )
+            except (OSError, ValueError, TypeError, KeyError) as exc:
+                logger.error(f"Poke 里程碑数据无法读取，自动禁言已停用：{exc}")
+            try:
+                register_milestone_routes(self.context, PLUGIN_NAME, self._poke_milestones)
+            except ImportError:
+                self._poke_milestones = None
+                logger.warning("当前 AstrBot 缺少原生 Web API，Poke 里程碑已停用。")
         logger.info(
             f"Airi 核心工具已加载 | @唤醒: {'启用' if self.self_mention_wakeup_enabled else '未启用'}"
             f" | @命令免LLM: {'启用' if self.at_command_suppress_llm_enabled else '未启用'}"
@@ -1169,11 +1282,29 @@ class Main(Star):
         poke = parse_bot_poke_notice(raw_message)
         if self.poke_stats_enabled and poke:
             group_id, user_id = poke
-            try:
-                async with self._poke_lock:
-                    await asyncio.to_thread(self._poke_store.record, group_id, user_id)
-            except Exception as exc:
-                logger.exception(f"记录 Poke 统计失败: {exc}")
+            # Keep count and mute dispatch ordered; release before yielding an
+            # LLM request, which runs in AstrBot's own conversation pipeline.
+            replies = []
+            async with self._poke_lock:
+                try:
+                    now = datetime.now()
+                    await asyncio.to_thread(self._poke_store.record, group_id, user_id, now=now)
+                    if not self._poke_milestones or not self._poke_milestones.active:
+                        return
+                    daily = await asyncio.to_thread(
+                        self._poke_store.daily_group_summary, group_id, user_id, now=now
+                    )
+                except Exception as exc:
+                    logger.exception(f"记录 Poke 统计失败: {exc}")
+                    return
+                try:
+                    replies = [reply async for reply in self._apply_poke_milestones(
+                        event, group_id, user_id, daily["stats_day"], daily["target_user_count"]
+                    )]
+                except Exception as exc:
+                    logger.exception(f"Poke 里程碑执行中断: {exc}")
+            for reply in replies:
+                yield reply
             return
 
         if not self.welcome_enabled:
@@ -1188,3 +1319,76 @@ class Main(Star):
 
         async for result in self._send_welcome(event):
             yield result
+
+    async def _apply_poke_milestones(self, event, group_id, user_id, day, count):
+        rules = self._poke_milestones.matching_rules(group_id, user_id, day, count)
+        if not rules or event.get_platform_name() != "aiocqhttp" or event.is_private_chat():
+            return
+        from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+
+        self_id = str(event.get_self_id())
+        if (not isinstance(event, AiocqhttpMessageEvent) or str(event.message_obj.group_id) != group_id
+                or str(event.message_obj.raw_message.get("self_id")) != self_id
+                or not all(s.isascii() and s.isdecimal() and int(s) > 0 for s in (group_id, user_id, self_id))):
+            return
+        # Suppress only AstrBot's default LLM route; the explicit post-mute
+        # request below is unaffected. Other plugins remain independent.
+        event.should_call_llm(True)
+        call = resolve_onebot_call_action(event)
+        if not callable(call):
+            return
+        target = await _poke_mute_target(call, group_id, user_id, self_id)
+        if target is None:
+            return
+
+        # If tolerance windows coincide, claim the matching rules before one
+        # mutation. Never shorten the longest same-event mute or spam replies.
+        claims = await asyncio.to_thread(
+            self._poke_milestones.claim_many, rules, group_id, user_id, day, count
+        )
+        if not claims:
+            return
+        minutes = max(rule["mute_minutes"] for rule, _ in claims)
+        status, detail = await _send_poke_mute(
+            call, group_id, user_id, self_id, minutes, target.get("shut_up_timestamp")
+        )
+        for rule, action_id in claims:
+            rule_detail = detail
+            if status == "success" and rule["mute_minutes"] != minutes:
+                rule_detail = f"同次命中多条规则，实际禁言 {minutes} 分钟"
+            await asyncio.to_thread(self._poke_milestones.finish, action_id, status, rule_detail)
+        if status != "success":
+            logger.warning(f"Poke 里程碑禁言未确认成功：{detail}")
+            return
+        reply_rules = [rule for rule, _ in claims if rule["llm_enabled"]]
+        if not reply_rules:
+            return
+        rule = max(reply_rules, key=lambda r: r["mute_minutes"])
+        try:
+            manager = self.context.conversation_manager
+            origin = event.unified_msg_origin
+            cid = await manager.get_curr_conversation_id(origin)
+            if not cid:
+                cid = await manager.new_conversation(origin, event.get_platform_id())
+            conversation = await manager.get_conversation(origin, cid)
+            if conversation is None:
+                return
+            prompt = (f"这位群友在本统计日第 {count} 次戳了你，已被自动禁言 {minutes} 分钟。"
+                      "请沿用当前人设和群聊语境，自然地回复一句。只生成群聊正文。")
+            if rule["prompt"]:
+                prompt += "\n场景提示：" + rule["prompt"]
+            request = event.request_llm(prompt=prompt, conversation=conversation)
+            event.set_extra("airi_poke_reply_request", request)
+            yield request
+        except Exception as exc:
+            logger.warning(f"Poke 禁言已成功，场景回复异常：{exc}")
+
+    @filter.on_llm_request(priority=-10000)
+    async def restrict_poke_reply_tools(self, event: AstrMessageEvent, req):
+        # Persona tools can be attached during request preparation. Clear only
+        # this generated request and leave the persona's shared registry intact.
+        original = event.get_extra("airi_poke_reply_request")
+        # AstrBot copies ProviderRequest during agent preparation. The event
+        # retains the original request, allowing an exact per-request match.
+        if original is not None and (req is original or event.get_extra("provider_request") is original):
+            req.func_tool = None
