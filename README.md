@@ -10,7 +10,7 @@
 
 <p>
   <a href="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml"><img src="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml/badge.svg" alt="Tests" /></a>
-  <img src="https://img.shields.io/badge/version-v1.4.1-f08aab?style=flat" alt="Version v1.4.1" />
+  <img src="https://img.shields.io/badge/version-v1.4.2-f08aab?style=flat" alt="Version v1.4.2" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.12-5575ad?style=flat" alt="Python 3.10 / 3.12 CI" />
   <img src="https://img.shields.io/badge/AstrBot-Plugin-805ad5?style=flat" alt="AstrBot Plugin" />
   <img src="https://img.shields.io/badge/OneBot-v11-49a6a6?style=flat" alt="OneBot v11" />
@@ -297,7 +297,8 @@ ww帮助
 - **统计对象**：只统计群友对机器人本人的戳一戳；群友相互戳一戳不计入。
 - **个人榜单**：当前群、所有群汇总、每日榜和历史榜，榜单图片带圆形 QQ 头像。
 - **跨群榜单**：以每个群戳机器人次数排名，可显示群头像。
-- **昵称保护**：群榜优先显示群名片，跨群个人总榜显示 QQ 昵称；图片不展示用户完整 QQ 号。
+- **昵称保护**：群聊排行图片优先显示群名片，跨群个人总榜显示 QQ 昵称；图片不展示用户完整 QQ 号。
+- **管理员 WebUI**：登录后的 Poke 排行同时显示 QQ 昵称 / 完整 QQ 号与群名称 / 完整群号。进入排行时按需获取名称并缓存，获取失败只显示号码；不改变群聊图片隐私保护。
 - **图片缓存**：头像缓存默认 24 小时；加载失败时优先用旧缓存或占位头像，不阻断排行榜生成。
 - **每日分界**：04:00 切日；重启和离线不会清空历史累计记录。
 
@@ -383,6 +384,7 @@ sudo apt install -y fonts-noto-cjk
 
 | 版本 | 重点改进 |
 | :--- | :--- |
+| **v1.4.2** | 管理控制中心 Poke 排行显示 QQ 昵称、完整 QQ 号、群名称和完整群号；按需读取并缓存名称 |
 | **v1.4.1** | 新增常驻 Airi 控制中心，统一管理插件可视化配置、状态、好友/群邀请审批、Poke 排行与里程碑、QQ 空间扫描；保存后即时应用，危险操作二次确认 |
 | **v1.3.30** | 新增 AstrBot Poke 里程碑原生 View；支持随机阈值、基于群权限的自动禁言与可选 LLM 场景回复 |
 | **v1.3.29** | 移除 QQ 资料卡自动回赞及其轮询接口，保留 QQ 空间自动点赞和其他功能 |

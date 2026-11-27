@@ -70,6 +70,20 @@ class FakePlugin:
 
 
 class ConsoleApiTests(unittest.TestCase):
+    def test_poke_ranks_route_is_read_only_and_returns_full_identity(self):
+        async def run():
+            context, plugin, web = FakeContext(), FakePlugin(), FakeWeb()
+            async def ranks():
+                return {"daily_users": [{"id": "123456789", "name": "测试昵称", "count": 3}]}
+            plugin.console_poke_ranks = ranks
+            register_console_routes(context, "airi", plugin, web=web)
+            self.assertIn(("/airi/console/poke-ranks", "GET"), context.routes)
+            self.assertNotIn(("/airi/console/poke-ranks", "POST"), context.routes)
+            response = await context.routes[("/airi/console/poke-ranks", "GET")]()
+            self.assertEqual(response["status_code"], 200)
+            self.assertEqual(response["body"]["daily_users"][0]["id"], "123456789")
+        asyncio.run(run())
+
     def test_validate_accepts_supported_fields_and_normalizes_lists(self):
         result = validate_settings({
             "self_mention_wakeup_enabled": True,
