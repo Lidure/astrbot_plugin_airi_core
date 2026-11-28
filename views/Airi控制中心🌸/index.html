@@ -7,39 +7,185 @@
 <meta name="description" content="Airi Core 常驻可视化管理控制中心">
 <title>Airi 控制中心</title>
 <style>
-:root{color-scheme:light;--bg:#f5f6f8;--panel:#fff;--panel2:#f8f9fb;--ink:#20232b;--muted:#6d7481;--line:#e5e8ee;--accent:#e96d8c;--accent2:#fff0f4;--good:#23865b;--warn:#a86a13;--bad:#c74646;--shadow:0 10px 30px rgba(27,36,50,.06);--radius:15px;--font:Inter,"Microsoft YaHei",system-ui,sans-serif}
-:root[data-theme=dark]{color-scheme:dark;--bg:#17191f;--panel:#20232b;--panel2:#272b35;--ink:#edf0f5;--muted:#a0a7b4;--line:#383d49;--accent:#f18aa4;--accent2:#382630;--good:#65c99a;--warn:#e4b76e;--bad:#f08b8b;--shadow:0 10px 30px rgba(0,0,0,.22)}
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:14px/1.55 var(--font)}button,input,textarea,select{font:inherit}button{cursor:pointer}button:disabled,input:disabled,textarea:disabled,select:disabled{opacity:.55;cursor:not-allowed}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}[hidden]{display:none!important}
-.app{min-height:100vh;display:grid;grid-template-columns:230px minmax(0,1fr)}.sidebar{position:sticky;top:0;height:100vh;padding:24px 16px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:24px}.brand{display:flex;align-items:center;gap:11px;padding:0 8px}.logo{width:39px;height:39px;border-radius:13px;background:var(--accent2);color:var(--accent);display:grid;place-items:center;font-size:22px}.brand strong{display:block;font-size:16px;letter-spacing:-.03em}.brand small{color:var(--muted)}.nav{display:grid;gap:5px}.nav button{display:flex;align-items:center;gap:11px;width:100%;border:0;border-radius:10px;padding:11px 12px;background:transparent;color:var(--muted);text-align:left;font-weight:600}.nav button:hover{background:var(--panel2);color:var(--ink)}.nav button.active{background:var(--accent2);color:var(--accent)}.nav .ico{width:20px;text-align:center;font-size:16px}.side-foot{margin-top:auto;padding:12px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
-.main{min-width:0;padding:28px clamp(16px,3vw,42px) 48px;max-width:1500px;width:100%;margin:0 auto}.topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:22px}.title h1{font-size:26px;line-height:1.2;margin:0 0 7px;letter-spacing:-.04em}.title p{margin:0;color:var(--muted)}.top-actions{display:flex;gap:9px;align-items:center}.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:99px;background:var(--panel);border:1px solid var(--line);color:var(--muted);font-size:12px;white-space:nowrap}.dot{width:7px;height:7px;border-radius:50%;background:var(--good)}.btn{min-height:38px;border:1px solid var(--line);border-radius:9px;padding:8px 13px;background:var(--panel);color:var(--ink);font-weight:650}.btn:hover{background:var(--panel2)}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn.danger{color:var(--bad)}.btn.small{min-height:30px;padding:5px 9px;font-size:12px}.message{margin:0 0 18px;padding:11px 14px;border-radius:10px;background:var(--accent2);color:var(--ink);border:1px solid color-mix(in srgb,var(--accent) 22%,var(--line))}.message.error{background:color-mix(in srgb,var(--bad) 10%,var(--panel));color:var(--bad);border-color:color-mix(in srgb,var(--bad) 25%,var(--line))}
-.view{display:none}.view.active{display:block}.view-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin:8px 0 18px}.view-head h2{font-size:20px;margin:0 0 3px;letter-spacing:-.03em}.view-head p{margin:0;color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.card,.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}.metric{padding:17px}.metric .label{color:var(--muted);font-size:12px}.metric .value{font-size:27px;font-weight:750;letter-spacing:-.04em;margin:5px 0 1px;font-variant-numeric:tabular-nums}.metric .sub{color:var(--muted);font-size:12px}.panel{padding:18px;margin-bottom:16px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.panel-head h3{margin:0;font-size:15px}.panel-head p{margin:3px 0 0;color:var(--muted);font-size:12px}.two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.feature-list{display:grid;gap:0}.feature{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}.feature:last-child{border-bottom:0}.feature strong{display:block}.feature small{display:block;color:var(--muted);margin-top:2px}.pill{font-size:11px;border-radius:99px;padding:4px 8px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);white-space:nowrap}.pill.on{color:var(--good);border-color:color-mix(in srgb,var(--good) 30%,var(--line));background:color-mix(in srgb,var(--good) 9%,var(--panel))}.pill.warn{color:var(--warn)}
-.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px 18px}.field{min-width:0}.field.full{grid-column:1/-1}.field label,.field>span{display:block;font-weight:650;margin-bottom:6px}.field small,.help{display:block;color:var(--muted);font-size:12px;margin-top:5px;line-height:1.55}.field input:not([type=checkbox]),.field textarea,.field select{width:100%;min-height:39px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--bg);color:var(--ink)}.field textarea{min-height:88px;resize:vertical}.field input[type=number]{font-variant-numeric:tabular-nums}.check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.check{display:flex;align-items:flex-start;gap:9px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}.check input{margin:3px 0 0;width:16px;height:16px;accent-color:var(--accent);flex:none}.check strong{display:block;font-weight:650}.check small{display:block;color:var(--muted);font-size:12px;margin-top:2px}.form-foot{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}.notice{padding:12px 13px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.6;margin:0 0 15px}.notice.warning{background:color-mix(in srgb,var(--warn) 8%,var(--panel));color:var(--warn)}.notice.danger{background:color-mix(in srgb,var(--bad) 8%,var(--panel));color:var(--bad)}
-.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:650px}th,td{text-align:left;padding:10px 11px;border-bottom:1px solid var(--line);vertical-align:middle}th{font-size:11px;color:var(--muted);font-weight:700;background:var(--panel2);white-space:nowrap}tr:last-child td{border-bottom:0}.empty{padding:26px 12px;text-align:center;color:var(--muted)}.actions{display:flex;gap:5px;white-space:nowrap}.text-btn{border:0;background:transparent;color:var(--muted);padding:5px 7px;border-radius:7px}.text-btn:hover{background:var(--panel2);color:var(--ink)}.text-btn.danger:hover{color:var(--bad)}.stat-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}.stat-line:last-child{border:0}.stat-line span{color:var(--muted)}.stat-line strong{font-variant-numeric:tabular-nums}.rule-dialog{width:min(520px,calc(100% - 24px));max-height:90vh;overflow:auto;border:1px solid var(--line);border-radius:16px;padding:20px;background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}.rule-dialog::backdrop{background:rgba(12,16,24,.55)}.dialog-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.dialog-head h3{margin:0}.dialog-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.mobile-note{display:none}
-@media(max-width:1050px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.app{grid-template-columns:195px minmax(0,1fr)}}@media(max-width:760px){.app{display:block}.sidebar{position:sticky;z-index:5;top:0;height:auto;padding:10px 12px;border-right:0;border-bottom:1px solid var(--line);gap:8px}.brand{padding:0 3px}.logo{width:32px;height:32px}.nav{display:flex;overflow-x:auto;gap:5px;padding-bottom:2px}.nav button{width:auto;white-space:nowrap;padding:8px 10px;font-size:12px}.side-foot{display:none}.main{padding:20px 13px 36px}.topbar{align-items:flex-start;flex-direction:column}.top-actions{width:100%;justify-content:space-between}.title h1{font-size:23px}.grid{gap:9px}.metric{padding:13px}.metric .value{font-size:23px}.two-col,.form-grid{grid-template-columns:1fr}.check-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.panel{padding:14px}.view-head{align-items:flex-start;flex-direction:column}.mobile-note{display:block}}
-@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+:root {
+  color-scheme: light;
+  --bg: #f6f7fa; --panel: #fff; --panel2: #f7f8fb; --ink: #202535;
+  --muted: #657084; --line: #e4e8ef; --accent: #a12b60; --accent2: #fcecf4;
+  --primary: #ab3769; --primary-hover: #902650; --good: #15764c;
+  --warn: #925b10; --bad: #b73143; --shadow: 0 2px 12px #27324808;
+  --radius: 13px; --font: Inter, "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+}
+:root[data-theme=dark] {
+  color-scheme: dark;
+  --bg: #171a20; --panel: #20242c; --panel2: #272c36; --ink: #edf1f8;
+  --muted: #a6afc1; --line: #383e4c; --accent: #f39ac1; --accent2: #402b39;
+  --primary: #a72e64; --primary-hover: #bf457a; --good: #6fd7a2;
+  --warn: #e5b866; --bad: #f48b9b; --shadow: 0 2px 12px #0002;
+}
+* {box-sizing: border-box}
+html, body {margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); font: 14px/1.55 var(--font)}
+button, input, textarea, select {font: inherit}
+button {cursor: pointer}
+button:disabled, input:disabled, textarea:disabled, select:disabled {opacity: .55; cursor: not-allowed}
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {outline: 2px solid var(--accent); outline-offset: 3px}
+[hidden] {display: none !important}
+.app {min-height: 100vh}
+.appbar {position: sticky; top: 0; z-index: 10; background: var(--panel); border-bottom: 1px solid var(--line)}
+.bar-content {max-width: 1600px; margin: auto; padding: 13px 28px 0}
+.brand-row {display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px}
+.brand {display: flex; align-items: center; gap: 10px}
+.logo {width: 38px; height: 38px; border-radius: 11px; background: var(--accent2); display: grid; place-items: center; font-size: 22px}
+.brand strong {display: block; font-size: 16px; letter-spacing: -.02em}
+.brand small {color: var(--muted); font-size: 11px}
+.nav {display: flex; gap: 6px; overflow-x: auto}
+.nav button {display: flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 17px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font-weight: 600; white-space: nowrap; border-radius: 8px 8px 0 0}
+.nav button:hover {background: var(--panel2); color: var(--ink)}
+.nav button.active {background: var(--accent2); border-bottom-color: var(--accent); color: var(--accent)}
+.nav .ico {font-size: 16px}
+.main {min-width: 0; padding: 27px 28px 48px; max-width: 1600px; width: 100%; margin: 0 auto}
+.topbar {display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 23px}
+.title h1 {font-size: 27px; line-height: 1.25; margin: 0 0 7px; letter-spacing: -.035em}
+.title p {margin: 0; color: var(--muted)}
+.top-actions {display: flex; gap: 9px; align-items: center}
+.chip {display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 7px; background: var(--panel2); color: var(--muted); font-size: 12px}
+.dot {width: 8px; height: 8px; border-radius: 50%; background: var(--good); flex: none}
+.chip[data-status="loading"] .dot {background: var(--warn)}
+.chip[data-status="error"] .dot {background: var(--bad)}
+.btn {min-height: 38px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; background: var(--panel); color: var(--ink); font-weight: 650; white-space: nowrap}
+.btn:hover:not(:disabled) {background: var(--panel2)}
+.btn.primary {background: var(--primary); border-color: var(--primary); color: #fff}
+.btn.primary:hover:not(:disabled) {background: var(--primary-hover)}
+.btn.danger {color: var(--bad)}
+.btn.small {min-height: 32px; padding: 5px 10px; font-size: 12px}
+.message {padding: 10px 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--accent2); color: var(--ink); overflow-wrap: anywhere}
+#message {margin: 0 0 12px}
+.message.error {background: color-mix(in srgb, var(--bad) 10%, var(--panel)); color: var(--bad); border-color: color-mix(in srgb, var(--bad) 25%, var(--line))}
+.view {display: none}
+.view.active {display: block}
+.view-head {display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 0 14px}
+.view-head h2 {font-size: 17px; margin: 0 0 3px; letter-spacing: -.02em}
+.view-head p {margin: 0; color: var(--muted); font-size: 12px}
+.grid {display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px}
+.card, .panel {min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow)}
+.metric {padding: 16px 19px}
+.metric .label {color: var(--muted); font-size: 12px}
+.metric .value {font-size: 27px; font-weight: 750; letter-spacing: -.035em; margin: 4px 0; font-variant-numeric: tabular-nums}
+.metric .sub {color: var(--muted); font-size: 12px; overflow-wrap: anywhere}
+.panel {padding: 20px; margin-bottom: 16px}
+.panel-head {display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px}
+.panel-head h3 {margin: 0; font-size: 16px}
+.panel-head p {margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5}
+.two-col {display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px}
+.feature-list {display: grid; gap: 0}
+.feature {display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line)}
+.feature:last-child {border-bottom: 0}
+.feature strong, .feature small {display: block}
+.feature small {color: var(--muted); margin-top: 3px}
+.pill {display: inline-flex; align-items: center; font-size: 11px; border-radius: 6px; padding: 4px 8px; background: var(--panel2); border: 1px solid var(--line); color: var(--muted); white-space: nowrap}
+.pill.on {color: var(--good); border-color: color-mix(in srgb, var(--good) 30%, var(--line)); background: color-mix(in srgb, var(--good) 9%, var(--panel))}
+.pill.warn {color: var(--warn)}
+.form-grid {display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px 24px; align-items: start}
+.field {min-width: 0}
+.field.full {grid-column: 1/-1}
+.field label, .field>span {display: block; font-weight: 650; margin-bottom: 6px}
+.field small, .help {display: block; color: var(--muted); font-size: 12px; margin-top: 5px; line-height: 1.55}
+.field input:not([type=checkbox]), .field textarea, .field select {width: 100%; min-height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; background: var(--panel2); color: var(--ink)}
+.field textarea {min-height: 90px; resize: vertical}
+.field input[type=number] {font-variant-numeric: tabular-nums}
+.field + .field.full {margin-top: 13px}
+.check-grid {display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px}
+.check {display: flex; align-items: flex-start; justify-content: flex-start; min-height: 68px; gap: 11px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel2); cursor: pointer}
+.check input, .switch {appearance: none; margin: 2px 0 0; width: 35px; height: 20px; background: var(--line); border: 1px solid var(--muted); border-radius: 20px; position: relative; flex: none; cursor: pointer}
+.check input::before, .switch::before {content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--panel); box-shadow: 0 1px 2px #0003}
+.check input:checked, .switch:checked {background: var(--primary); border-color: var(--primary)}
+.check input:checked::before, .switch:checked::before {transform: translateX(15px); background: #fff}
+.check input:disabled, .switch:disabled {cursor: not-allowed}
+.check strong {display: block; font-weight: 650}
+.check small {display: block; color: var(--muted); font-size: 12px; margin-top: 3px}
+.form-foot {display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--line)}
+.form-foot .help {margin: 0 auto 0 0}
+.draft-status {font-size: 12px; color: var(--muted)}
+.draft-status.dirty {color: var(--warn); font-weight: 600}
+.notice {padding: 11px 13px; border-radius: 8px; background: var(--panel2); border: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.65; margin: 0 0 15px; white-space: pre-wrap; overflow-wrap: anywhere}
+.notice.warning {background: color-mix(in srgb,var(--warn) 8%,var(--panel)); color: var(--warn)}
+.notice.danger {background: color-mix(in srgb,var(--bad) 8%,var(--panel)); color: var(--bad)}
+.table-wrap {max-width: 100%; overflow-x: auto; min-width: 0}
+table {width: 100%; border-collapse: collapse; table-layout: auto; min-width: 0}
+th, td {text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; overflow-wrap: anywhere}
+th {font-size: 12px; color: var(--muted); font-weight: 650; background: var(--panel2)}
+tr:last-child td {border-bottom: 0}
+tbody tr:hover {background: var(--panel2)}
+.empty {padding: 27px 12px; text-align: center; color: var(--muted); font-size: 13px}
+.actions {display: flex; gap: 4px; flex-wrap: wrap}
+.text-btn {white-space: nowrap; border: 0; background: transparent; color: var(--accent); padding: 6px 7px; border-radius: 6px; font-weight: 600}
+.text-btn:hover:not(:disabled) {background: var(--accent2)}
+.text-btn.danger {color: var(--bad)}
+.stat-line {display: flex; justify-content: space-between; gap: 24px; padding: 10px 0; border-bottom: 1px solid var(--line)}
+.stat-line:last-child {border: 0}
+.stat-line span {color: var(--muted); flex: none}
+.stat-line strong {font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; min-width: 0}
+.poke-switch {display: flex; align-items: center; gap: 16px; padding: 16px 18px; border: 1px solid var(--line); background: var(--panel2); border-radius: 10px}
+.poke-switch .switch-copy {min-width: 0; flex: 1}
+.poke-switch strong {display: block; margin-bottom: 3px; font-size: 15px}
+.poke-switch small {display: block; color: var(--muted)}
+.poke-switch .switch {width: 44px; height: 24px; margin: 0}
+.poke-switch .switch::before {height: 18px; width: 18px}
+.poke-switch .switch:checked::before {transform: translateX(20px)}
+.rank-table table {table-layout: fixed}
+.rank-table th:first-child {width: 54px}
+.rank-table th:nth-child(3) {width: 112px}
+.rank-table th:last-child {width: 74px}
+.rank-table td:last-child {font-weight: 650; font-variant-numeric: tabular-nums}
+.rank-table th, .rank-table td {padding: 10px 8px}
+.rank-table td:nth-child(3) {font-size: 12px; font-variant-numeric: tabular-nums}
+#milestone-rules table {min-width: 650px}
+#milestone-history table {min-width: 660px}
+#requests-table table {min-width: 780px}
+.rule-dialog, .confirm-dialog {width: min(600px,calc(100% - 32px)); max-height: 90vh; overflow: auto; border: 1px solid var(--line); border-radius: 15px; padding: 23px; background: var(--panel); color: var(--ink); box-shadow: 0 18px 60px #0003}
+.confirm-dialog {width: min(460px, calc(100% - 32px))}
+.rule-dialog::backdrop, .confirm-dialog::backdrop {background: #08101d88}
+.dialog-head {display: flex; justify-content: space-between; align-items: center; margin-bottom: 17px}
+.dialog-head h3 {margin: 0; font-size: 18px}
+.dialog-foot {display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px}
+.rule-dialog .field {margin-bottom: 13px}
+.rule-dialog .check {min-height: auto; margin-top: 9px}
+.confirm-copy {margin: 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere}
+#milestone-form-error {margin-top: 12px}
+@media (max-width: 1150px) {
+  .bar-content {padding-inline: 20px}
+  .main {padding-inline: 20px}
+  .nav button {padding-inline: 12px}
+  .panel {padding: 16px}
+}
+@media (prefers-reduced-motion: reduce) {* {scroll-behavior: auto !important; transition: none !important}}
 </style>
 </head>
 <body>
 <div class="app">
-  <aside class="sidebar">
-    <div class="brand"><div class="logo">🌸</div><div><strong>Airi Core</strong><small>控制中心</small></div></div>
-    <nav class="nav" aria-label="控制中心导航">
-      <button class="active" data-view="overview"><span class="ico">⌂</span>总览</button>
-      <button data-view="chat"><span class="ico">✦</span>对话与唤醒</button>
-      <button data-view="moderation"><span class="ico">♢</span>群管理与欢迎</button>
-      <button data-view="requests"><span class="ico">♧</span>好友与群邀请</button>
-      <button data-view="poke"><span class="ico">♡</span>戳一戳与排行</button>
-      <button data-view="qzone"><span class="ico">◎</span>QQ 空间点赞</button>
-    </nav>
-    <div class="side-foot">常驻管理台 · 页面随插件自动注册<br>配置保存后即时应用</div>
-  </aside>
+  <header class="appbar">
+    <div class="bar-content">
+      <div class="brand-row">
+        <div class="brand"><div class="logo" aria-hidden="true">🌸</div><div><strong>Airi Core</strong><small>AstrBot · 控制中心</small></div></div>
+        <div class="top-actions">
+          <span class="chip" id="plugin-status-chip" data-status="loading" role="status"><i class="dot" aria-hidden="true"></i><span id="plugin-status">正在连接插件…</span></span>
+          <button class="btn" id="refresh" type="button" disabled>刷新状态</button>
+        </div>
+      </div>
+      <div id="message" class="message" role="status" aria-live="polite" hidden></div>
+      <nav class="nav" aria-label="控制中心导航">
+        <button class="active" data-view="overview" aria-current="page"><span class="ico" aria-hidden="true">⌂</span>总览</button>
+        <button data-view="chat"><span class="ico" aria-hidden="true">✦</span>对话与唤醒</button>
+        <button data-view="moderation"><span class="ico" aria-hidden="true">♢</span>群管理与欢迎</button>
+        <button data-view="requests"><span class="ico" aria-hidden="true">♧</span>好友与群邀请</button>
+        <button data-view="poke"><span class="ico" aria-hidden="true">♡</span>戳一戳与排行</button>
+        <button data-view="qzone"><span class="ico" aria-hidden="true">◎</span>QQ 空间点赞</button>
+      </nav>
+    </div>
+  </header>
   <main class="main">
     <header class="topbar">
-      <div class="title"><h1 id="page-title">Airi 控制中心 🌸</h1><p id="page-subtitle">集中查看与管理 Airi Core 的功能、配置和运行状态。</p></div>
-      <div class="top-actions"><span class="chip"><i class="dot"></i><span id="plugin-status">正在连接插件…</span></span><button class="btn" id="refresh" type="button">刷新状态</button></div>
+      <div class="title"><h1 id="page-title">Airi 控制中心</h1><p id="page-subtitle">集中查看与管理 Airi Core 的功能、配置和运行状态。</p></div>
     </header>
-    <div id="message" class="message" role="status" aria-live="polite" hidden></div>
-
     <section class="view active" id="view-overview">
       <div class="view-head"><div><h2>运行概况</h2><p>插件加载后此页面会自动出现在 AstrBot 插件 View 中，无需额外启用。</p></div></div>
       <div class="grid">
@@ -56,7 +202,6 @@
     </section>
 
     <section class="view" id="view-chat">
-      <div class="view-head"><div><h2>对话与唤醒</h2><p>管理 @Bot 唤醒、跨节点命令免 LLM、关键词唤醒和主动 @ 工具。</p></div></div>
       <form class="panel settings-form" data-section="chat_settings">
         <div class="panel-head"><div><h3>唤醒与命令过滤</h3><p>设置群聊与私聊中哪些消息可以触发 LLM。</p></div></div>
         <div class="check-grid">
@@ -74,21 +219,20 @@
           <div class="field"><label for="group-whitelist">群聊关键词白名单</label><textarea id="group-whitelist" data-key="keyword_wakeup_group_whitelist" data-list placeholder="群号，一行一个"></textarea><small>留空表示所有群；只限制群聊关键词唤醒。</small></div>
           <div class="field"><label for="private-whitelist">私聊关键词 QQ 白名单</label><textarea id="private-whitelist" data-key="keyword_wakeup_user_whitelist" data-list placeholder="QQ 号，一行一个"></textarea><small>留空表示所有私聊用户；不会限制群聊成员。</small></div>
         </div>
-        <div class="form-foot"><span class="help" id="chat-saved">配置尚未读取</span><button class="btn primary" type="submit">保存对话设置</button></div>
+        <div class="form-foot"><span class="help" id="chat-saved">配置尚未读取</span><button class="btn primary" type="submit" disabled>保存对话设置</button></div>
       </form>
     </section>
 
     <section class="view" id="view-moderation">
-      <div class="view-head"><div><h2>群管理与欢迎</h2><p>LLM 群管理能力、入群欢迎消息及其安全边界。</p></div></div>
       <form class="panel settings-form" data-section="moderation_settings">
         <div class="panel-head"><div><h3>LLM 禁言工具</h3><p>启用后模型可以根据对话上下文请求群禁言。</p></div></div>
         <div class="notice warning">禁言会直接影响群成员发言权限。启用后仍会执行 OneBot 平台和群角色权限检查，请谨慎授权。</div>
         <div class="check-grid"><label class="check"><input type="checkbox" data-key="mute_tool_enabled"><span><strong>启用 LLM 禁言工具</strong><small>需要 Bot 在 QQ 群内具有相应管理权限。</small></span></label></div>
         <div class="form-grid" style="margin-top:15px">
-          <div class="field"><label for="mute-min">最短禁言时间（分钟）</label><input id="mute-min" type="number" min="1" max="60" data-key="mute_duration_min"></div>
-          <div class="field"><label for="mute-max">最长禁言时间（分钟）</label><input id="mute-max" type="number" min="1" max="43200" data-key="mute_duration_max"></div>
+          <div class="field"><label for="mute-min">最短禁言时间（分钟）</label><input id="mute-min" type="number" min="1" max="60" data-key="mute_duration_min" required></div>
+          <div class="field"><label for="mute-max">最长禁言时间（分钟）</label><input id="mute-max" type="number" min="1" max="43200" data-key="mute_duration_max" required></div>
         </div>
-        <div class="form-foot"><span class="help">禁言工具开关会立即同步到 LLM 工具列表。</span><button class="btn primary" type="submit">保存群管理设置</button></div>
+        <div class="form-foot"><span class="help">禁言工具开关会立即同步到 LLM 工具列表。</span><button class="btn primary" type="submit" disabled>保存群管理设置</button></div>
       </form>
       <form class="panel settings-form" data-section="welcome_settings">
         <div class="panel-head"><div><h3>入群欢迎</h3><p>当 Bot 自己加入新群时发送欢迎消息。</p></div></div>
@@ -96,48 +240,55 @@
         <div class="check-grid"><label class="check"><input type="checkbox" data-key="welcome_enabled"><span><strong>启用入群欢迎消息</strong><small>仅在 Bot 自己加入群聊时触发。</small></span></label></div>
         <div class="field full" style="margin-top:14px"><label for="welcome-message">欢迎消息内容</label><textarea id="welcome-message" data-key="welcome_message" maxlength="2000"></textarea></div>
         <div class="field full"><span>已配置欢迎图片</span><div class="notice" id="welcome-images">正在读取图片列表…</div></div>
-        <div class="form-foot"><span class="help">欢迎文本和开关保存后立即生效。</span><button class="btn primary" type="submit">保存欢迎设置</button></div>
+        <div class="form-foot"><span class="help">欢迎文本和开关保存后立即生效。</span><button class="btn primary" type="submit" disabled>保存欢迎设置</button></div>
       </form>
     </section>
 
     <section class="view" id="view-requests">
-      <div class="view-head"><div><h2>好友与群邀请</h2><p>管理好友自动同意、人工审批通知和待处理请求。</p></div></div>
       <form class="panel settings-form" data-section="request_settings">
+        <div class="panel-head"><div><h3>申请处理策略</h3><p>配置自动处理和人工通知。</p></div></div>
         <div class="notice warning">自动同意好友申请会直接通过新好友请求；人工审批会向指定 QQ 发送私聊通知。两项功能可以按需组合，但自动同意优先处理好友申请。</div>
         <div class="check-grid">
           <label class="check"><input type="checkbox" data-key="auto_accept_friend_request"><span><strong>自动同意好友申请</strong><small>仅支持 OneBot / aiocqhttp 好友申请事件。</small></span></label>
           <label class="check"><input type="checkbox" data-key="request_approval_enabled"><span><strong>启用好友 / 群邀请人工审批</strong><small>将待审批请求通知给指定 QQ。</small></span></label>
         </div>
         <div class="field" style="margin-top:15px"><label for="approval-qq">审批管理员 QQ</label><input id="approval-qq" type="text" inputmode="numeric" data-key="request_approval_qq" placeholder="输入 QQ 号"><small>接收通知并可使用 /同意申请 A001、/拒绝申请 A001 执行审批；WebUI 审批由已登录的 AstrBot 管理员执行。</small></div>
-        <div class="form-foot"><span class="help">申请策略保存后立即生效。</span><button class="btn primary" type="submit">保存申请设置</button></div>
+        <div class="form-foot"><span class="help">申请策略保存后立即生效。</span><button class="btn primary" type="submit" disabled>保存申请设置</button></div>
       </form>
-      <section class="panel"><div class="panel-head"><div><h3>待处理请求</h3><p>最多显示最近 50 条；审批仍使用现有命令完成，避免控制台绕过 OneBot 审批校验。</p></div><span class="pill" id="request-count">0 条</span></div><div id="requests-table" class="table-wrap"><div class="empty">暂无待处理请求。</div></div></section>
+      <section class="panel"><div class="panel-head"><div><h3>待处理请求</h3><p>最多显示最近 50 条；可在这里同意或拒绝申请，审批操作仍执行现有 OneBot 校验。</p></div><span class="pill" id="request-count">—</span></div><div id="requests-table" class="table-wrap"><div class="empty">暂无待处理请求。</div></div></section>
     </section>
 
     <section class="view" id="view-poke">
-      <div class="view-head"><div><h2>戳一戳与排行榜</h2><p>管理统计开关、排行上限，以及戳一戳里程碑自动禁言。</p></div></div>
+      <section class="panel">
+        <div class="panel-head"><div><h3>里程碑自动禁言</h3><p>按群、成员和统计日独立计数。仅 Bot 拥有相应群管理权限时才尝试禁言。</p></div></div>
+        <div class="poke-switch">
+          <label class="switch-copy" for="milestone-global"><strong>自动禁言总开关</strong><small id="milestone-hint">正在读取…</small></label>
+          <span class="pill" id="milestone-status">读取中</span>
+          <input class="switch" type="checkbox" role="switch" id="milestone-global" aria-label="启用里程碑自动禁言" aria-describedby="milestone-hint" disabled>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><div><h3>禁言规则</h3><p id="milestone-rule-summary">正在读取规则…</p></div><button class="btn primary" id="milestone-add" type="button" disabled>＋ 新增规则</button></div>
+        <div id="milestone-rules" class="table-wrap"><div class="empty">正在读取规则…</div></div>
+      </section>
       <form class="panel settings-form" data-section="poke_settings">
         <div class="panel-head"><div><h3>Poke 统计</h3><p>统计目标为 Bot 自己的群内戳一戳。</p></div></div>
         <div class="check-grid"><label class="check"><input type="checkbox" data-key="poke_stats_enabled"><span><strong>启用 Poke 统计排行榜</strong><small>关闭后不再记录新戳一戳数据。</small></span></label></div>
-        <div class="field" style="max-width:320px;margin-top:14px"><label for="poke-limit">排行榜人数上限</label><input id="poke-limit" type="number" min="10" max="100" data-key="poke_rank_max_limit"><small>范围 10–100 人。</small></div>
-        <div class="form-foot"><span class="help">统计数据不会因修改配置而清空。</span><button class="btn primary" type="submit">保存统计设置</button></div>
+        <div class="field" style="max-width:320px;margin-top:14px"><label for="poke-limit">排行榜人数上限</label><input id="poke-limit" type="number" min="10" max="100" data-key="poke_rank_max_limit" required><small>范围 10–100 人。</small></div>
+        <div class="form-foot"><span class="help">统计数据不会因修改配置而清空。</span><button class="btn primary" type="submit" disabled>保存统计设置</button></div>
       </form>
-      <section class="panel"><div class="panel-head"><div><h3>戳一戳里程碑自动禁言</h3><p>按群、成员和统计日独立计数；需启用 Poke 统计。</p></div><button class="btn primary small" id="milestone-add" type="button" disabled>新增规则</button></div>
-        <div class="notice warning">这是实际群管理操作。打开总开关前请确认 Bot 具有群管理权限；规则默认关闭，不会自动创建。</div>
-        <div class="feature"><div><strong>自动禁言总开关</strong><small id="milestone-hint">正在读取…</small></div><input type="checkbox" id="milestone-global" aria-label="启用里程碑自动禁言" disabled></div>
-        <div id="milestone-rules" class="table-wrap"><div class="empty">正在读取规则…</div></div>
-      </section>
-      <div class="two-col">
-        <section class="panel"><div class="panel-head"><div><h3>今日个人排行</h3><p id="poke-name-hint">显示 QQ 昵称与完整 QQ 号；昵称不可用时保留号码。</p></div></div><div id="poke-daily-users" class="table-wrap"><div class="empty">正在读取…</div></div></section>
-        <section class="panel"><div class="panel-head"><div><h3>历史个人排行</h3><p>跨群累计次数。</p></div></div><div id="poke-history-users" class="table-wrap"><div class="empty">正在读取…</div></div></section>
-        <section class="panel"><div class="panel-head"><div><h3>今日群排行</h3><p>按今日戳 Bot 次数排序。</p></div></div><div id="poke-daily-groups" class="table-wrap"><div class="empty">正在读取…</div></div></section>
-        <section class="panel"><div class="panel-head"><div><h3>历史群排行</h3><p>跨日累计次数。</p></div></div><div id="poke-history-groups" class="table-wrap"><div class="empty">正在读取…</div></div></section>
-      </div>
       <section class="panel"><div class="panel-head"><div><h3>最近执行记录</h3><p>显示最近 100 条实际尝试记录。</p></div></div><div id="milestone-history" class="table-wrap"><div class="empty">正在读取记录…</div></div></section>
+      <div class="view-head"><div><h2>排行榜</h2><p>当前控制台显示今日及历史统计，用户和群聊 ID 保留完整号码。</p></div></div>
+      <div class="two-col">
+        <section class="panel"><div class="panel-head"><div><h3>今日个人排行</h3><p id="poke-name-hint">显示 QQ 昵称与完整 QQ 号；昵称不可用时保留号码。</p></div></div><div id="poke-daily-users" class="table-wrap rank-table"><div class="empty">正在读取…</div></div></section>
+        <section class="panel"><div class="panel-head"><div><h3>历史个人排行</h3><p>跨群累计次数。</p></div></div><div id="poke-history-users" class="table-wrap rank-table"><div class="empty">正在读取…</div></div></section>
+        <section class="panel"><div class="panel-head"><div><h3>今日群排行</h3><p>按今日戳 Bot 次数排序。</p></div></div><div id="poke-daily-groups" class="table-wrap rank-table"><div class="empty">正在读取…</div></div></section>
+        <section class="panel"><div class="panel-head"><div><h3>历史群排行</h3><p>跨日累计次数。</p></div></div><div id="poke-history-groups" class="table-wrap rank-table"><div class="empty">正在读取…</div></div></section>
+      </div>
     </section>
 
     <section class="view" id="view-qzone">
-      <div class="view-head"><div><h2>QQ 空间点赞</h2><p>管理好友新说说扫描、待处理队列、频率和测试模式。</p></div><button class="btn" id="qzone-scan" type="button" disabled>手动扫描一次</button></div>
+      <div class="view-head"><div><h2>扫描概况</h2><p id="qzone-scan-hint">正在读取运行状态…</p></div><button class="btn" id="qzone-scan" type="button" disabled>手动扫描一次</button></div>
       <div class="grid">
         <article class="card metric"><div class="label">已索引动态</div><div class="value" id="qzone-seen">—</div><div class="sub">去重记录</div></article>
         <article class="card metric"><div class="label">待处理队列</div><div class="value" id="qzone-queue">—</div><div class="sub">保留待处理任务</div></article>
@@ -153,32 +304,40 @@
         </div>
         <div class="form-grid" style="margin-top:15px">
           <div class="field"><label for="qzone-owner">管理命令授权 QQ</label><input id="qzone-owner" inputmode="numeric" data-key="qzone_owner_qq"><small>允许该 QQ 使用 /空间点赞 状态|开启|关闭|扫描。</small></div>
-          <div class="field"><label for="qzone-interval">扫描间隔（秒）</label><input id="qzone-interval" type="number" min="120" max="86400" data-key="qzone_poll_interval_sec"></div>
-          <div class="field"><label for="qzone-max">每轮最多尝试点赞数</label><input id="qzone-max" type="number" min="1" max="10" data-key="qzone_max_likes_per_cycle"></div>
-          <div class="field"><label for="qzone-batch">每轮补充检查好友数</label><input id="qzone-batch" type="number" min="0" max="20" data-key="qzone_friend_batch_size"></div>
-          <div class="field"><label for="qzone-feed">每个来源最多请求动态数</label><input id="qzone-feed" type="number" min="10" max="60" data-key="qzone_feed_count"></div>
-          <div class="field"><label for="qzone-delay-min">点赞前随机延迟最小值（秒）</label><input id="qzone-delay-min" type="number" min="0" max="120" data-key="qzone_delay_min_sec"></div>
-          <div class="field"><label for="qzone-delay-max">点赞前随机延迟最大值（秒）</label><input id="qzone-delay-max" type="number" min="0" max="180" data-key="qzone_delay_max_sec"></div>
+          <div class="field"><label for="qzone-interval">扫描间隔（秒）</label><input id="qzone-interval" type="number" min="120" max="86400" data-key="qzone_poll_interval_sec" required></div>
+          <div class="field"><label for="qzone-max">每轮最多尝试点赞数</label><input id="qzone-max" type="number" min="1" max="10" data-key="qzone_max_likes_per_cycle" required></div>
+          <div class="field"><label for="qzone-batch">每轮补充检查好友数</label><input id="qzone-batch" type="number" min="0" max="20" data-key="qzone_friend_batch_size" required></div>
+          <div class="field"><label for="qzone-feed">每个来源最多请求动态数</label><input id="qzone-feed" type="number" min="10" max="60" data-key="qzone_feed_count" required></div>
+          <div class="field"><label for="qzone-delay-min">点赞前随机延迟最小值（秒）</label><input id="qzone-delay-min" type="number" min="0" max="120" data-key="qzone_delay_min_sec" required></div>
+          <div class="field"><label for="qzone-delay-max">点赞前随机延迟最大值（秒）</label><input id="qzone-delay-max" type="number" min="0" max="180" data-key="qzone_delay_max_sec" required></div>
         </div>
-        <div class="form-foot"><span class="help">当前运行状态会显示在上方；OneBot 收到消息后自动绑定账号。</span><button class="btn primary" type="submit">保存空间点赞设置</button></div>
+        <div class="form-foot"><span class="help">当前运行状态会显示在上方；OneBot 收到消息后自动绑定账号。</span><button class="btn primary" type="submit" disabled>保存空间点赞设置</button></div>
       </form>
       <section class="panel"><div class="panel-head"><div><h3>运行详情</h3><p>不显示 Cookie、Skey 或其他登录凭据。</p></div></div><div id="qzone-details"><div class="empty">正在读取…</div></div></section>
     </section>
   </main>
 </div>
 
-<dialog class="rule-dialog" id="milestone-dialog">
+<dialog class="rule-dialog" id="milestone-dialog" aria-labelledby="milestone-dialog-title">
   <form id="milestone-editor">
     <div class="dialog-head"><h3 id="milestone-dialog-title">新增里程碑规则</h3><button class="btn small" type="button" id="milestone-close">关闭</button></div>
     <input type="hidden" name="id">
-    <div class="field"><label>规则名称</label><input name="name" maxlength="40" required placeholder="例如：第 30 次戳戳"></div>
-    <div class="form-grid"><div class="field"><label>目标次数</label><input name="target" type="number" min="1" max="1000000" value="30" required></div><div class="field"><label>随机浮动次数</label><input name="tolerance" type="number" min="0" max="10000" value="2" required></div><div class="field"><label>禁言时长（分钟）</label><input name="mute_minutes" type="number" min="1" max="43200" value="1" required></div></div>
+    <div class="field"><label for="rule-name">规则名称</label><input id="rule-name" name="name" maxlength="40" required placeholder="例如：第 30 次戳戳"></div>
+    <div class="form-grid"><div class="field"><label for="rule-target">目标次数</label><input id="rule-target" name="target" type="number" min="1" max="1000000" value="30" required></div><div class="field"><label for="rule-tolerance">随机浮动次数</label><input id="rule-tolerance" name="tolerance" type="number" min="0" max="10000" value="2" required></div><div class="field"><label for="rule-mute_minutes">禁言时长（分钟）</label><input id="rule-mute_minutes" name="mute_minutes" type="number" min="1" max="43200" value="1" required></div></div>
     <label class="check"><input name="enabled" type="checkbox" checked><span><strong>启用此规则</strong></span></label>
     <label class="check"><input name="llm_enabled" type="checkbox"><span><strong>禁言成功后附带 LLM 场景回复</strong></span></label>
-    <div class="field" style="margin-top:12px"><label>回复提示（可选）</label><textarea name="prompt" maxlength="1000" placeholder="结合当前群聊气氛，轻轻吐槽对方又来戳我"></textarea></div>
-    <div id="milestone-form-error" class="message error" hidden></div>
-    <div class="dialog-foot"><button class="btn" type="button" id="milestone-cancel">取消</button><button class="btn primary" type="submit" id="milestone-save">保存规则</button></div>
+    <div class="field" style="margin-top:12px"><label for="rule-prompt">回复提示（可选）</label><textarea id="rule-prompt" name="prompt" maxlength="1000" placeholder="结合当前群聊气氛，轻轻吐槽对方又来戳我"></textarea></div>
+    <div id="milestone-form-error" class="message error" role="alert" hidden></div>
+    <div class="dialog-foot"><button class="btn" type="button" id="milestone-reconcile" hidden>刷新核对结果</button><button class="btn" type="button" id="milestone-cancel">取消</button><button class="btn primary" type="submit" id="milestone-save">保存规则</button></div>
   </form>
+</dialog>
+<dialog class="confirm-dialog" id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+  <div class="dialog-head"><h3 id="confirm-title">请确认操作</h3></div>
+  <p id="confirm-text" class="confirm-copy"></p>
+  <div class="dialog-foot">
+    <button class="btn" type="button" id="confirm-cancel" autofocus>取消</button>
+    <button class="btn primary" type="button" id="confirm-accept">确认</button>
+  </div>
 </dialog>
 <!-- AstrBot rewrites this canonical SDK URL with its authenticated page asset token. -->
 <script src="/api/plugin/page/bridge-sdk.js"></script>
@@ -187,59 +346,801 @@
   "use strict";
   const bridge = window.AstrBotPluginView;
   const $ = id => document.getElementById(id);
-  const ROUTES = {state:"console/state",pokeRanks:"console/poke-ranks",settings:"console/settings",requestReview:"console/requests/review",scan:"console/qzone/scan",milestones:"poke-milestones/state",milestoneSettings:"poke-milestones/settings",saveRule:"poke-milestones/rules/save",toggleRule:"poke-milestones/rules/toggle",deleteRule:"poke-milestones/rules/delete"};
-  const titles = {overview:["Airi 控制中心 🌸","集中查看与管理 Airi Core 的功能、配置和运行状态。"],chat:["对话与唤醒","管理 @Bot 唤醒、命令免 LLM、关键词和主动 @ 工具。"],moderation:["群管理与欢迎","配置群管理能力、入群欢迎和消息内容。"],requests:["好友与群邀请","管理自动同意、人工审批和待处理请求。"],poke:["戳一戳与排行榜","管理 Poke 统计、排行榜和里程碑自动禁言。"],qzone:["QQ 空间点赞","管理好友新说说扫描、队列和点赞频率。"]};
-  let state=null, milestoneState=null, busy=false, ready=false, activeView="overview", rankLoad=null;
-  const dialog=$("milestone-dialog"), milestoneForm=$("milestone-editor");
-  const el=(tag,text,klass)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text??"");if(klass)n.className=klass;return n;};
-  const unwrap=r=>r?.data??r;
-  function notify(text,error=false){const box=$("message");box.textContent=text;box.hidden=!text;box.classList.toggle("error",error);}
-  function errorText(e){return e instanceof Error?e.message:String(e);}
-  function setBusy(value){busy=value;$("refresh").disabled=busy||!ready;for(const b of document.querySelectorAll(".settings-form button[type=submit],#qzone-scan,#milestone-add,#milestone-save"))b.disabled=busy||!ready;}
-  function navigate(name){if(!titles[name])return;activeView=name;for(const b of document.querySelectorAll("[data-view]"))b.classList.toggle("active",b.dataset.view===name);for(const section of document.querySelectorAll(".view"))section.classList.toggle("active",section.id==="view-"+name);$("page-title").textContent=titles[name][0];$("page-subtitle").textContent=titles[name][1];if(name==="poke"&&ready&&state)void loadPokeRanks();}
-  document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.view)));
-  document.querySelectorAll("[data-view-jump]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.viewJump)));
-  function fillSettings(){
-    for(const form of document.querySelectorAll(".settings-form"))for(const control of form.querySelectorAll("[data-key]")){
-      const key=control.dataset.key,value=state.settings[key];
-      if(control.type==="checkbox")control.checked=value===true;
-      else if(control.dataset.list!==undefined)control.value=Array.isArray(value)?value.join("\n"):"";
-      else control.value=value??"";
-    }
-    const images=state.settings.welcome_images;
-    $("welcome-images").textContent=Array.isArray(images)&&images.length?images.join("\n"):"尚未配置欢迎图片。图片上传请使用 AstrBot 插件配置页。";
-    $("chat-saved").textContent="设置已读取；保存后即时应用。";
-  }
-  function collect(form){const result={};for(const control of form.querySelectorAll("[data-key]")){const key=control.dataset.key;let value;if(control.type==="checkbox")value=control.checked;else if(control.dataset.list!==undefined)value=control.value.split(/[\n,，;；]+/).map(x=>x.trim()).filter(Boolean);else if(control.type==="number")value=Number(control.value);else value=control.value;result[key]=value;}return result;}
-  function needsConfirmation(updates){const current=state.settings;for(const key of ["auto_accept_friend_request","request_approval_enabled","welcome_enabled","mute_tool_enabled","qzone_auto_like_enabled"])if(updates[key]===true&&current[key]!==true)return true;const enabled=updates.qzone_auto_like_enabled??current.qzone_auto_like_enabled;const dry=updates.qzone_dry_run??current.qzone_dry_run;return !!enabled&&dry===false&&current.qzone_dry_run!==false;}
-  async function saveForm(form){if(busy||!state)return;const updates=collect(form);let confirmSideEffects=false;if(needsConfirmation(updates)){if(!confirm("此设置会触发真实的群管理、消息通知、好友处理或 QQ 空间操作。确认继续吗？"))return;confirmSideEffects=true;}setBusy(true);try{const result=unwrap(await bridge.apiPost(ROUTES.settings,{settings:updates,confirm_side_effects:confirmSideEffects}));if(result?.status==="error")throw Error(result.message||"保存失败");state=result;fillSettings();renderOverview();renderRequests();renderQzone();renderPokeRanks();notify("设置已保存，并已应用到当前运行实例。");}catch(e){notify("保存失败："+errorText(e),true);}finally{setBusy(false);}}
-  document.querySelectorAll(".settings-form").forEach(form=>form.addEventListener("submit",e=>{e.preventDefault();if(form.reportValidity())saveForm(form);}));
-  function renderOverview(){if(!state)return;const s=state.stats||{},q=state.qzone||{},pending=state.pending_requests||[];$("plugin-status").textContent="插件已加载 · 控制中心在线";$("metric-total").textContent=Number(s.total_pokes||0).toLocaleString();$("metric-daily").textContent=Number(s.daily_pokes||0).toLocaleString();$("metric-day").textContent="统计日："+(s.stats_day||"暂无数据");$("metric-groups").textContent=Number(s.group_count||0).toLocaleString();$("metric-users").textContent="参与用户 "+Number(s.user_count||0).toLocaleString();$("metric-pending").textContent=Number(q.pending_count||0).toLocaleString();$("metric-qzone").textContent=q.enabled?(q.dry_run?"只读测试队列":"真实点赞队列"):"空间扫描未启用";
-    const rows=[["@Bot 唤醒 LLM",state.settings.self_mention_wakeup_enabled],["@Bot 命令免 LLM",state.settings.at_command_suppress_llm_enabled],["群聊关键词唤醒",state.settings.keyword_wakeup_enabled],["LLM 主动 @ 工具",state.settings.mention_tool_enabled],["LLM 禁言工具",state.settings.mute_tool_enabled],["入群欢迎",state.settings.welcome_enabled],["好友申请自动同意",state.settings.auto_accept_friend_request],["Poke 统计",state.settings.poke_stats_enabled],["QQ 空间自动扫描",q.enabled]];
-    const list=$("feature-list");list.replaceChildren();for(const [name,on] of rows){const row=el("div",undefined,"feature"),copy=el("div"),strong=el("strong",name),small=el("small",on?"当前已启用":"当前已关闭"),pill=el("span",on?"已启用":"已关闭","pill"+(on?" on":""));copy.append(strong,small);row.append(copy,pill);list.append(row);}
-    $("request-summary").textContent=pending.length?"当前有 "+pending.length+" 条请求等待审批。":"暂无待处理请求。";
-  }
-  function renderRequests(){const rows=state?.pending_requests||[];$("request-count").textContent=rows.length+" 条";const panel=$("requests-table");if(!rows.length){panel.replaceChildren(el("div","暂无待处理请求。","empty"));return;}const table=el("table"),head=el("thead"),tr=el("tr");for(const t of ["编号","类型","申请人","群聊","验证信息","时间","操作"]){const th=el("th",t);tr.append(th);}head.append(tr);const body=el("tbody");for(const r of rows){const row=el("tr"),values=[r.request_id,r.kind==="friend"?"好友申请":"群邀请",(r.nickname||"未知")+"（"+(r.user_id||"—")+"）",r.group_id?(r.group_name||"群")+"（"+r.group_id+"）":"—",r.comment||"无",r.created_at||"—"];for(const v of values)row.append(el("td",v));const td=el("td"),actions=el("div",undefined,"actions"),yes=el("button","同意","btn small"),no=el("button","拒绝","btn small danger");yes.type=no.type="button";yes.dataset.requestApprove=r.request_id;no.dataset.requestReject=r.request_id;const canReview=!!state.runtime.onebot_client_available;yes.disabled=no.disabled=!canReview;actions.append(yes,no);td.append(actions);row.append(td);body.append(row);}table.append(head,body);panel.replaceChildren(table);}
-  function renderPokeRanks(){if(!state)return;const ranks=state.poke_ranks||{};for(const [key,id] of [["daily_users","poke-daily-users"],["history_users","poke-history-users"],["daily_groups","poke-daily-groups"],["history_groups","poke-history-groups"]]){const user=key.endsWith("_users");const rows=(ranks[key]||[]).map((r,i)=>[i+1,r.name||"—",r.id||r.label||"—",r.count+" 次"]);table($(id),["排名",user?"QQ 昵称":"群名称",user?"QQ 号":"群号","次数"],rows,"暂无统计数据。");}}
-  async function loadPokeRanks(){if(!ready||!state)return false;if(rankLoad)return rankLoad;const hint=$("poke-name-hint");hint.textContent="正在查询排行榜昵称和群名…";rankLoad=(async()=>{try{const ranks=unwrap(await bridge.apiGet(ROUTES.pokeRanks));if(!ranks||!["daily_users","history_users","daily_groups","history_groups"].every(key=>Array.isArray(ranks[key])))throw Error("排行数据格式不正确");state.poke_ranks=ranks;renderPokeRanks();hint.textContent="显示 QQ 昵称与完整 QQ 号；昵称不可用时保留号码。";return true;}catch(e){hint.textContent="昵称查询暂不可用，已保留完整号码。";return false;}finally{rankLoad=null;}})();return rankLoad;}
+  const ROUTES = {
+    state: "console/state", pokeRanks: "console/poke-ranks", settings: "console/settings",
+    requestReview: "console/requests/review", scan: "console/qzone/scan",
+    milestones: "poke-milestones/state", milestoneSettings: "poke-milestones/settings",
+    saveRule: "poke-milestones/rules/save", toggleRule: "poke-milestones/rules/toggle",
+    deleteRule: "poke-milestones/rules/delete"
+  };
+  const titles = {
+    overview: ["Airi 控制中心", "集中查看 Airi Core 各模块的实际运行状态。"],
+    chat: ["对话与唤醒", "管理 @Bot 唤醒、命令免 LLM、关键词和主动 @ 工具。"],
+    moderation: ["群管理与欢迎", "配置群管理能力、入群欢迎和消息内容。"],
+    requests: ["好友与群邀请", "管理自动同意、人工审批和待处理请求。"],
+    poke: ["戳一戳与排行榜", "管理里程碑自动禁言、统计设置、执行记录与排行。"],
+    qzone: ["QQ 空间点赞", "管理好友新说说扫描、队列和点赞频率。"]
+  };
+  const forms = [...document.querySelectorAll(".settings-form")];
+  const editable = [...document.querySelectorAll("[data-key]")];
+  const editorDialog = $("milestone-dialog");
+  const milestoneForm = $("milestone-editor");
+  const confirmDialog = $("confirm-dialog");
+  const baselines = new Map();
+  const rankKeys = ["daily_users", "history_users", "daily_groups", "history_groups"];
+  let state = null, milestoneState = null, ready = false, busy = false;
+  let stateFresh = false, milestonesFresh = false, activeView = "overview";
+  let stateReadError = "", milestoneReadError = "", rankLoad = null;
+  let pendingConfirmation = null, pendingNewRule = null;
 
-  $("requests-table").addEventListener("click",async e=>{const b=e.target.closest("button");if(!b||busy)return;const approveId=b.dataset.requestApprove,rejectId=b.dataset.requestReject,id=approveId||rejectId;if(!id)return;const approve=!!approveId;if(!confirm((approve?"确定同意":"确定拒绝")+"申请 "+id+" 吗？此操作会直接调用 OneBot 处理申请。"))return;setBusy(true);try{const r=unwrap(await bridge.apiPost(ROUTES.requestReview,{request_id:id,approve,confirm:true}));if(r?.status==="error")throw Error(r.message||"审批失败");state=r.state||state;renderRequests();renderOverview();notify(r.message||"审批已完成。");}catch(err){notify("审批失败："+errorText(err),true);}finally{setBusy(false);}});
-  function renderQzone(){if(!state)return;const q=state.qzone||{};$("qzone-seen").textContent=Number(q.seen_count||0).toLocaleString();$("qzone-queue").textContent=Number(q.pending_count||0).toLocaleString();$("qzone-liked").textContent=Number(q.liked||0).toLocaleString();$("qzone-failed").textContent="失败 "+Number(q.failed||0);$("qzone-friends").textContent=Number(q.friend_count||0).toLocaleString();$("qzone-last-scan").textContent="上次扫描："+(q.last_scan||"尚未扫描");$("qzone-mode").textContent=!q.enabled?"未启用":q.dry_run?"只读测试":"真实点赞";$("qzone-mode").className="pill"+(q.enabled?(q.dry_run?" warn":" on"):"");$("qzone-scan").disabled=busy||!ready||!q.enabled;const details=$("qzone-details");details.replaceChildren();for(const [label,value] of [["后台任务",q.running?"运行中":"未运行"],["已初始化来源",q.initialized_count||0],["只读测试计数",q.dry_count||0],["暂停剩余",(q.suspended_seconds||0)+" 秒"],["最近错误",q.last_error||"无"]]){const row=el("div",undefined,"stat-line");row.append(el("span",label),el("strong",value));details.append(row);}}
-  async function loadState(){if(!ready)return false;try{state=unwrap(await bridge.apiGet(ROUTES.state));if(!state?.settings||!state?.runtime)throw Error("控制中心返回数据格式不正确");fillSettings();renderOverview();renderRequests();renderQzone();renderPokeRanks();if(activeView==="poke")void loadPokeRanks();return true;}catch(e){notify("读取控制中心失败："+errorText(e),true);$("plugin-status").textContent="连接失败";return false;}}
-  function table(panel,headers,rows,empty){if(!rows.length){panel.replaceChildren(el("div",empty,"empty"));return;}const t=el("table"),h=el("thead"),r=el("tr");for(const title of headers)r.append(el("th",title));h.append(r);const b=el("tbody");for(const cells of rows){const tr=el("tr");for(const cell of cells){const td=el("td");if(cell instanceof Node)td.append(cell);else td.textContent=String(cell??"—");tr.append(td);}b.append(tr);}t.append(h,b);panel.replaceChildren(t);}
-  function action(label,key,id,danger=false){const b=el("button",label,"text-btn"+(danger?" danger":""));b.type="button";b.dataset[key]=id;return b;}
-  function renderMilestones(){if(!milestoneState)return;const g=$("milestone-global");g.checked=milestoneState.enabled;g.disabled=busy||!state?.runtime?.poke_milestones_available;$("milestone-add").disabled=busy||!state?.runtime?.poke_milestones_available;$("milestone-hint").textContent=milestoneState.enabled?"已开启；命中启用规则时会尝试执行禁言。":"已关闭；不会自动禁言。";const labels={success:"成功",failed:"失败",unknown:"未知",pending:"执行中"};table($("milestone-rules"),["规则名称","目标次数","禁言","LLM 回复","状态","操作"],milestoneState.rules.map(r=>{const actions=el("div",undefined,"actions");actions.append(action("编辑","edit",r.id),action(r.enabled?"停用":"启用","toggle",r.id),action("删除","delete",r.id,true));return [r.name,r.target+" 次（±"+r.tolerance+"）",r.mute_minutes+" 分钟",r.llm_enabled?"开启":"关闭",r.enabled?"启用":"停用",actions];}),"暂无规则。点击“新增规则”创建第一条规则。");table($("milestone-history"),["时间","群 / 用户","规则","触发次数","结果","说明"],milestoneState.history.slice(0,100).map(h=>[String(h.created_at||"—").replace("T"," ").slice(0,19),(h.group_id||"—")+" / "+(h.user_id||"—"),h.rule_name||h.rule_id||"—",h.count==null?"—":h.count+" 次",labels[h.status]||"未知",h.detail||"—"]),"暂无执行记录。");}
-  async function loadMilestones(){try{milestoneState=unwrap(await bridge.apiGet(ROUTES.milestones));if(!milestoneState||typeof milestoneState.enabled!=="boolean"||!Array.isArray(milestoneState.rules)||!Array.isArray(milestoneState.history))throw Error("里程碑数据格式错误");renderMilestones();return true;}catch(e){$("milestone-hint").textContent="里程碑 API 不可用："+errorText(e);$("milestone-rules").replaceChildren(el("div","里程碑数据不可用，请检查插件日志。","empty"));$("milestone-history").replaceChildren(el("div","执行记录不可用。","empty"));return false;}}
-  async function milestoneWrite(route,payload,success){if(busy)return;setBusy(true);try{const value=unwrap(await bridge.apiPost(route,payload));if(value?.status==="error")throw Error(value.message||"操作失败");milestoneState=value;renderMilestones();notify(success);}catch(e){renderMilestones();notify("里程碑操作失败："+errorText(e),true);}finally{setBusy(false);}}
-  $("milestone-global").addEventListener("change",e=>{const enabled=e.target.checked;if(enabled&&!confirm("开启后可能在 QQ 群内自动禁言成员。请确认已检查规则和 Bot 管理权限。")){e.target.checked=false;return;}milestoneWrite(ROUTES.milestoneSettings,{enabled,confirm_side_effects:enabled},enabled?"里程碑自动禁言已开启。":"里程碑自动禁言已关闭。");});
-  function openMilestone(rule){milestoneForm.reset();const f=milestoneForm.elements;for(const [k,v] of Object.entries({id:rule?.id||"",name:rule?.name||"",target:rule?.target??30,tolerance:rule?.tolerance??2,mute_minutes:rule?.mute_minutes??1,prompt:rule?.prompt||""}))f[k].value=v;f.enabled.checked=rule?.enabled!==false;f.llm_enabled.checked=rule?.llm_enabled===true;$("milestone-dialog-title").textContent=rule?"编辑里程碑规则":"新增里程碑规则";$("milestone-form-error").hidden=true;dialog.showModal();}
-  $("milestone-add").addEventListener("click",()=>openMilestone(null));$("milestone-close").addEventListener("click",()=>dialog.close());$("milestone-cancel").addEventListener("click",()=>dialog.close());
-  milestoneForm.addEventListener("submit",e=>{e.preventDefault();if(!milestoneForm.reportValidity())return;const f=milestoneForm.elements,payload={name:f.name.value.trim(),target:Number(f.target.value),tolerance:Number(f.tolerance.value),mute_minutes:Number(f.mute_minutes.value),enabled:f.enabled.checked,llm_enabled:f.llm_enabled.checked,prompt:f.prompt.value.trim()};if(f.id.value)payload.id=f.id.value;if(milestoneState?.enabled&&payload.enabled){if(!confirm("当前里程碑总开关已开启，保存启用状态的规则后可能立即触发群禁言。确认继续吗？"))return;payload.confirm_side_effects=true;}setBusy(true);bridge.apiPost(ROUTES.saveRule,payload).then(value=>{milestoneState=unwrap(value);renderMilestones();dialog.close();notify("里程碑规则已保存。");}).catch(e=>{$("milestone-form-error").textContent="保存失败："+errorText(e);$("milestone-form-error").hidden=false;}).finally(()=>setBusy(false));});
-  $("milestone-rules").addEventListener("click",e=>{const b=e.target.closest("button");if(!b||busy)return;const id=b.dataset.edit||b.dataset.toggle||b.dataset.delete;const rule=milestoneState?.rules.find(r=>r.id===id);if(!rule)return;if(b.dataset.edit)openMilestone(rule);else if(b.dataset.toggle)(()=>{const enabled=!rule.enabled;if(enabled&&milestoneState.enabled&&!confirm("当前里程碑总开关已开启，启用此规则后可能立即触发群禁言。确认继续吗？"))return;milestoneWrite(ROUTES.toggleRule,{id,enabled,confirm_side_effects:enabled},"规则状态已更新。");})();else if(b.dataset.delete&&confirm("确定删除规则“"+rule.name+"”吗？"))milestoneWrite(ROUTES.deleteRule,{id},"规则已删除。");});
-  $("qzone-scan").addEventListener("click",async()=>{if(busy)return;const q=state?.qzone||{};if(!q.dry_run&&!confirm("当前为真实点赞模式。手动扫描可能会代表 Bot 给好友新说说点赞，确认继续吗？"))return;setBusy(true);try{const r=unwrap(await bridge.apiPost(ROUTES.scan,{confirm_side_effects:!q.dry_run}));if(r?.status==="error")throw Error(r.message||"扫描失败");state=r.state||state;renderOverview();renderQzone();renderPokeRanks();const s=r.summary||{};notify("扫描完成：新发现 "+(s.new||0)+" 条，入队 "+(s.queued||0)+" 条，尝试 "+(s.attempted||0)+" 条，成功 "+(s.liked||0)+" 条，失败 "+(s.failed||0)+" 条。");}catch(e){notify("扫描失败："+errorText(e),true);}finally{setBusy(false);}});
-  $("refresh").addEventListener("click",async()=>{if(busy)return;setBusy(true);const stateOk=await loadState();const milestonesOk=await loadMilestones();setBusy(false);if(stateOk&&milestonesOk)notify("状态已刷新。");});
-  async function boot(){if(!bridge){notify("AstrBot 页面桥接未加载，请从 AstrBot 原生插件 View 打开。",true);$("plugin-status").textContent="页面未连接";return;}try{if(typeof bridge.onContext==="function")bridge.onContext(c=>document.documentElement.dataset.theme=c?.isDark?"dark":"light");await bridge.ready();ready=true;$("refresh").disabled=false;await loadState();await loadMilestones();}catch(e){notify("页面初始化失败："+errorText(e),true);$("plugin-status").textContent="连接失败";}}
-  boot();
+  function el(tag, text, klass) {
+    const n = document.createElement(tag);
+    if (text !== undefined) n.textContent = String(text ?? "");
+    if (klass) n.className = klass;
+    return n;
+  }
+  function notify(text, error = false) {
+    const box = $("message");
+    box.textContent = text;
+    box.hidden = !text;
+    box.classList.toggle("error", error);
+  }
+  function errorText(e) { return e instanceof Error ? e.message : String(e); }
+  function object(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
+  class ApiFailure extends Error {}
+  function unwrap(response) {
+    if (response?.status === "error") throw new ApiFailure(response.message || "请求失败");
+    const result = response?.data ?? response;
+    if (result?.status === "error") throw new ApiFailure(result.message || "请求失败");
+    return result;
+  }
+  function integer(value, low = 0, high = Number.MAX_SAFE_INTEGER) {
+    return Number.isInteger(value) && value >= low && value <= high;
+  }
+  function validRanks(ranks) {
+    return object(ranks) && rankKeys.every(key =>
+      Array.isArray(ranks[key]) && ranks[key].every(row =>
+        object(row) && typeof row.id === "string" && row.id.length > 0 &&
+        typeof row.name === "string" && integer(row.count)));
+  }
+  function validSetting(control, value) {
+    if (control.type === "checkbox") return typeof value === "boolean";
+    // Legacy AstrBot keyword/allowlist configuration may contain comma/newline
+    // text or numeric QQ IDs, and old numeric settings may be numeric strings.
+    if (control.dataset.list !== undefined) return typeof value === "string" ||
+      (Array.isArray(value) && value.every(item => typeof item === "string" || Number.isSafeInteger(item)));
+    if (control.type === "number") return Number.isSafeInteger(value) ||
+      (typeof value === "string" && /^-?\d+$/.test(value.trim()) && Number.isSafeInteger(Number(value)));
+    if (["request_approval_qq", "qzone_owner_qq"].includes(control.dataset.key)) {
+      return typeof value === "string" || (Number.isSafeInteger(value) && value >= 0);
+    }
+    return typeof value === "string";
+  }
+  function validateState(response) {
+    const next = unwrap(response);
+    if (next?.runtime?.plugin_loaded === false) throw Error("插件尚未加载，请先加载插件再刷新");
+    if (!object(next) || !object(next.settings) || !object(next.runtime) ||
+        next.runtime.plugin_loaded !== true ||
+        !["onebot_client_available", "poke_stats_enabled", "poke_milestones_available",
+          "mention_tool_enabled", "mute_tool_enabled"].every(key => typeof next.runtime[key] === "boolean") ||
+        !editable.every(control => Object.hasOwn(next.settings, control.dataset.key) &&
+          validSetting(control, next.settings[control.dataset.key])) ||
+        !object(next.stats) || !["total_pokes", "daily_pokes", "group_count", "user_count"]
+          .every(key => integer(next.stats[key])) ||
+        !Array.isArray(next.pending_requests) || !next.pending_requests.every(row =>
+          object(row) && typeof row.request_id === "string" && row.request_id.length > 0) ||
+        !validRanks(next.poke_ranks) ||
+        !object(next.qzone) || !["enabled", "dry_run", "running"].every(key => typeof next.qzone[key] === "boolean") ||
+        !["friend_count", "seen_count", "pending_count", "initialized_count", "liked",
+          "failed", "dry_count", "suspended_seconds"].every(key => integer(next.qzone[key]))) {
+      throw Error("控制中心返回数据格式不正确，请刷新后重试");
+    }
+    return next;
+  }
+  function validRule(rule) {
+    return object(rule) && typeof rule.id === "string" && !!rule.id.trim() &&
+      typeof rule.name === "string" && integer(Array.from(rule.name.trim()).length, 1, 40) &&
+      integer(rule.target, 1, 1000000) && integer(rule.tolerance, 0, 10000) &&
+      integer(rule.mute_minutes, 1, 43200) && typeof rule.enabled === "boolean" &&
+      typeof rule.llm_enabled === "boolean" && typeof rule.prompt === "string" &&
+      Array.from(rule.prompt.trim()).length <= 1000;
+  }
+  function validateMilestones(response) {
+    const next = unwrap(response);
+    if (!object(next) || typeof next.enabled !== "boolean" ||
+        !Array.isArray(next.rules) || !next.rules.every(validRule) ||
+        new Set(next.rules.map(rule => rule.id)).size !== next.rules.length ||
+        !Array.isArray(next.history) || !next.history.every(row =>
+          object(row) && typeof row.id === "string" && !!row.id.trim() &&
+          ["pending", "success", "failed", "unknown"].includes(row.status))) {
+      throw Error("里程碑数据格式不正确，请刷新后重试");
+    }
+    return next;
+  }
+  function matchingRule(rule, payload) {
+    return ["name", "target", "tolerance", "mute_minutes", "enabled", "llm_enabled", "prompt"]
+      .every(key => rule[key] === payload[key]);
+  }
+  function newRuleMatches(snapshot, draft) {
+    return snapshot.rules.filter(rule => !draft.beforeIds.has(rule.id) && matchingRule(rule, draft.payload));
+  }
+  function ensureMilestoneResult(route, payload, result) {
+    let correct = false;
+    if (route === ROUTES.milestoneSettings) correct = result.enabled === payload.enabled;
+    else if (route === ROUTES.toggleRule) correct = result.rules.some(r => r.id === payload.id && r.enabled === payload.enabled);
+    else if (route === ROUTES.deleteRule) correct = !result.rules.some(r => r.id === payload.id);
+    else if (route === ROUTES.saveRule) {
+      correct = payload.id ? result.rules.some(r => r.id === payload.id && matchingRule(r, payload)) :
+        newRuleMatches(result, {beforeIds: new Set(milestoneState.rules.map(r => r.id)), payload}).length === 1;
+    }
+    if (!correct) throw Error("服务返回的结果与本次操作不一致，实际状态尚未确认");
+  }
+  function ensureSettingsResult(updates, result) {
+    for (const [key, expected] of Object.entries(updates)) {
+      const actual = result.settings[key];
+      let correct;
+      if (Array.isArray(expected)) {
+        // Server deduplicates case-insensitively; validate exact canonical
+        // ASCII lists. For Unicode casefold differences, ensure a non-empty
+        // list retains its first item and never introduces unsolicited items.
+        const seen = new Set();
+        const deduped = expected.filter(item => { const key = item.toLowerCase(); if (seen.has(key)) return false; seen.add(key); return true; });
+        correct = Array.isArray(actual) && (expected.every(item => /^[\x00-\x7f]*$/.test(item)) ?
+          JSON.stringify(actual) === JSON.stringify(deduped) :
+          (!expected.length ? !actual.length : actual[0] === expected[0] &&
+            actual.every(item => expected.includes(item))));
+      } else {
+        const canonical = ["request_approval_qq", "qzone_owner_qq"].includes(key) ? expected.trim() : expected;
+        correct = actual === canonical;
+      }
+      if (!correct) throw Error("服务返回的配置与本次保存不一致，实际状态尚未确认");
+    }
+  }
+  function setPluginStatus(label, kind) {
+    $("plugin-status").textContent = label;
+    $("plugin-status-chip").dataset.status = kind;
+  }
+
+  // Every write and full refresh shares a single lock, including the await
+  // for a user confirmation. Disabled state is always derived from both
+  // that lock and validated service snapshots, rather than toggled ad hoc.
+  function milestoneAvailable() {
+    return !!(consoleAvailable() && milestonesFresh && milestoneState &&
+      state.runtime.poke_milestones_available === true);
+  }
+  function consoleAvailable() {
+    return !!(ready && stateFresh && state && state.runtime.plugin_loaded === true);
+  }
+  function scanAvailable() {
+    return !!(consoleAvailable() && state.qzone?.enabled === true && state.runtime.onebot_client_available === true);
+  }
+  function syncControls() {
+    $("refresh").disabled = busy || !bridge;
+    $("refresh").textContent = busy ? "处理中…" : "刷新状态";
+    for (const form of forms) {
+      for (const control of form.querySelectorAll("[data-key]")) {
+        control.disabled = busy || !consoleAvailable();
+      }
+      const changes = Object.keys(formChanges(form));
+      form.querySelector('button[type="submit"]').disabled =
+        busy || !consoleAvailable() || !changes.length;
+      const status = form.querySelector(".draft-status");
+      status.classList.toggle("dirty", changes.length > 0);
+      status.textContent = !state ? "等待配置读取" :
+        changes.length ? "有未保存的修改" : !stateFresh ? "显示上次配置，请刷新" : "与当前配置一致";
+    }
+    const milestoneLocked = busy || !milestoneAvailable();
+    $("milestone-global").disabled = milestoneLocked;
+    $("milestone-add").disabled = pendingNewRule ? busy || !consoleAvailable() : milestoneLocked;
+    $("milestone-add").textContent = pendingNewRule ? "继续核对新增结果" : "＋ 新增规则";
+    $("milestone-save").disabled = milestoneLocked || !!pendingNewRule;
+    $("milestone-reconcile").hidden = !pendingNewRule;
+    $("milestone-reconcile").disabled = busy || !consoleAvailable();
+    for (const button of $("milestone-rules").querySelectorAll("button")) {
+      button.disabled = milestoneLocked;
+    }
+    for (const control of milestoneForm.querySelectorAll("input, textarea, select")) {
+      control.disabled = milestoneLocked || !!pendingNewRule;
+    }
+    $("milestone-cancel").disabled = $("milestone-close").disabled = busy;
+    for (const button of $("requests-table").querySelectorAll("button")) {
+      button.disabled = busy || !consoleAvailable() || state.runtime.onebot_client_available !== true;
+    }
+    $("qzone-scan").disabled = busy || !scanAvailable();
+    $("qzone-scan-hint").textContent = !stateFresh ? "运行状态不可用，请刷新。" :
+      !state?.qzone?.enabled ? "启用自动扫描功能后可手动扫描。" :
+      state.runtime.onebot_client_available !== true ? "尚未捕获 OneBot 账号，等待 Bot 收到 QQ 消息。" :
+      state.qzone.dry_run ? "当前为只读测试，不会发送点赞请求。" : "当前为真实点赞模式，操作前需要确认。若账号尚未绑定，请等待 Bot 收到 QQ 消息。";
+
+    const hint = $("milestone-hint");
+    const status = $("milestone-status");
+    if (milestoneState) $("milestone-global").checked = milestoneState.enabled;
+    if (!milestoneAvailable()) {
+      status.textContent = "不可用";
+      status.className = "pill warn";
+      hint.textContent = milestoneReadError ? "里程碑 API 不可用：" + milestoneReadError :
+        stateReadError ? "控制中心状态不可用，请刷新后重试。" :
+        stateFresh && !state?.runtime?.poke_milestones_available ? "里程碑服务未加载，请检查插件日志。" :
+        "等待插件和规则数据读取…";
+    } else {
+      status.textContent = milestoneState.enabled ? "已开启" : "已关闭";
+      status.className = "pill" + (milestoneState.enabled ? " on" : "");
+      let detail = milestoneState.enabled ? "命中启用规则时将检查 Bot 群管理权限。" : "关闭时不会自动禁言。";
+      if (state.runtime.poke_stats_enabled === false || state.settings.poke_stats_enabled === false) {
+        detail += " Poke 统计已关闭，规则暂不会触发。";
+      }
+      hint.textContent = detail;
+    }
+  }
+  async function runAction(task) {
+    if (busy) return false;
+    const focus = document.activeElement;
+    busy = true;
+    syncControls();
+    try {
+      await task();
+      return true;
+    } finally {
+      busy = false;
+      syncControls();
+      if (focus instanceof HTMLElement && focus.isConnected &&
+          !focus.disabled && document.activeElement === document.body) focus.focus();
+    }
+  }
+
+  // AstrBot's iframe lacks allow-modals. A document-owned dialog works
+  // inside that sandbox, and only an explicit affirmative action resolves true.
+  function finishConfirmation(accepted) {
+    if (!pendingConfirmation) return;
+    const resolve = pendingConfirmation;
+    pendingConfirmation = null;
+    if (confirmDialog.open) confirmDialog.close();
+    resolve(accepted);
+  }
+  function askConfirmation(title, message) {
+    if (pendingConfirmation || confirmDialog.open) return Promise.resolve(false);
+    $("confirm-title").textContent = title;
+    $("confirm-text").textContent = message;
+    return new Promise(resolve => {
+      pendingConfirmation = resolve;
+      try {
+        confirmDialog.showModal();
+        $("confirm-cancel").focus();
+      } catch (error) {
+        finishConfirmation(false);
+        notify("无法显示操作确认：" + errorText(error), true);
+      }
+    });
+  }
+  $("confirm-cancel").addEventListener("click", () => finishConfirmation(false));
+  $("confirm-accept").addEventListener("click", () => finishConfirmation(true));
+  confirmDialog.addEventListener("cancel", event => {
+    event.preventDefault();
+    finishConfirmation(false);
+  });
+  confirmDialog.addEventListener("close", () => {
+    if (pendingConfirmation && !confirmDialog.open) finishConfirmation(false);
+  });
+
+  function navigate(name) {
+    if (!titles[name]) return;
+    activeView = name;
+    for (const button of document.querySelectorAll("[data-view]")) {
+      const current = button.dataset.view === name;
+      button.classList.toggle("active", current);
+      if (current) button.setAttribute("aria-current", "page");
+      else button.removeAttribute("aria-current");
+    }
+    for (const section of document.querySelectorAll(".view")) {
+      section.classList.toggle("active", section.id === "view-" + name);
+    }
+    $("page-title").textContent = titles[name][0];
+    $("page-subtitle").textContent = titles[name][1];
+    window.scrollTo(0, 0);
+    if (name === "poke" && ready && stateFresh) void loadPokeRanks();
+  }
+  document.querySelectorAll("[data-view]").forEach(button => {
+    button.addEventListener("click", () => navigate(button.dataset.view));
+  });
+  document.querySelectorAll("[data-view-jump]").forEach(button => {
+    button.addEventListener("click", () => navigate(button.dataset.viewJump));
+  });
+
+  function parseList(value) {
+    return value.split(/[\n,，;；]+/).map(x => x.trim()).filter(Boolean);
+  }
+  function controlValue(control) {
+    if (control.type === "checkbox") return control.checked;
+    if (control.dataset.list !== undefined) return parseList(control.value);
+    if (control.type === "number") return control.value === "" ? "" : Number(control.value);
+    return control.value;
+  }
+  function settingsValue(control, raw) {
+    if (control.type === "checkbox") return raw === true;
+    if (control.dataset.list !== undefined) return parseList(Array.isArray(raw) ? raw.join("\n") : typeof raw === "string" ? raw : "");
+    if (control.type === "number") return raw === "" || raw == null ? "" : Number(raw);
+    return String(raw ?? "");
+  }
+  function assignControl(control, raw) {
+    if (control.type === "checkbox") control.checked = raw === true;
+    else if (control.dataset.list !== undefined) control.value = Array.isArray(raw) ? raw.join("\n") : typeof raw === "string" ? raw : "";
+    else control.value = raw ?? "";
+  }
+  function formChanges(form) {
+    const base = baselines.get(form);
+    if (!base) return {};
+    const updates = {};
+    for (const control of form.querySelectorAll("[data-key]")) {
+      const value = controlValue(control), key = control.dataset.key;
+      if (JSON.stringify(value) !== JSON.stringify(base[key])) updates[key] = value;
+    }
+    return updates;
+  }
+  // Preserve unsaved fields across refreshes and across writes in other
+  // modules. Reconcile the saved form to the server's canonical values.
+  function fillSettings(savedForm) {
+    for (const form of forms) {
+      const draft = form === savedForm ? {} : formChanges(form);
+      const base = {};
+      for (const control of form.querySelectorAll("[data-key]")) {
+        const key = control.dataset.key, value = state.settings[key];
+        if (!Object.hasOwn(draft, key)) assignControl(control, value);
+        base[key] = settingsValue(control, value);
+      }
+      baselines.set(form, base);
+    }
+    const images = state.settings.welcome_images;
+    $("welcome-images").textContent = Array.isArray(images) && images.length ?
+      images.join("\n") : "尚未配置欢迎图片。图片上传请使用 AstrBot 插件配置页。";
+    $("chat-saved").textContent = "保存后即时应用。";
+  }
+  function needsConfirmation(updates) {
+    const current = state.settings;
+    for (const key of ["auto_accept_friend_request", "request_approval_enabled", "welcome_enabled", "mute_tool_enabled", "qzone_auto_like_enabled"]) {
+      if (updates[key] === true && current[key] !== true) return true;
+    }
+    const enabled = updates.qzone_auto_like_enabled ?? current.qzone_auto_like_enabled;
+    const dry = updates.qzone_dry_run ?? current.qzone_dry_run;
+    return !!enabled && dry === false && current.qzone_dry_run !== false;
+  }
+  async function saveForm(form) {
+    if (busy || !consoleAvailable() || !form.reportValidity()) return;
+    const updates = formChanges(form);
+    if (!Object.keys(updates).length) return;
+    await runAction(async () => {
+      try {
+        const sideEffects = needsConfirmation(updates);
+        if (sideEffects && !await askConfirmation("确认应用配置",
+          "此设置会触发真实的群管理、消息通知、好友处理或 QQ 空间操作。确认继续吗？")) return;
+        const result = validateState(await bridge.apiPost(ROUTES.settings, {
+          settings: updates, confirm_side_effects: sideEffects
+        }));
+        ensureSettingsResult(updates, result);
+        applyState(result, form);
+        notify("设置已保存，并已应用到当前运行实例。");
+      } catch (e) {
+        notify("保存失败：" + errorText(e) + "。修改内容已保留。", true);
+      }
+    });
+  }
+  for (const form of forms) {
+    const save = form.querySelector('button[type="submit"]');
+    save.before(el("span", "等待配置读取", "draft-status"));
+    form.addEventListener("input", syncControls);
+    form.addEventListener("change", syncControls);
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      void saveForm(form);
+    });
+  }
+
+  function table(panel, headers, rows, empty) {
+    if (!rows.length) {
+      panel.replaceChildren(el("div", empty, "empty"));
+      return;
+    }
+    const t = el("table"), h = el("thead"), r = el("tr");
+    for (const title of headers) {
+      const th = el("th", title);
+      th.scope = "col";
+      r.append(th);
+    }
+    h.append(r);
+    const body = el("tbody");
+    for (const cells of rows) {
+      const tr = el("tr");
+      for (const cell of cells) {
+        const td = el("td");
+        if (cell instanceof Node) td.append(cell);
+        else td.textContent = String(cell ?? "—");
+        tr.append(td);
+      }
+      body.append(tr);
+    }
+    t.append(h, body);
+    panel.replaceChildren(t);
+  }
+  function count(value) { return Number(value || 0).toLocaleString(); }
+  function renderOverview() {
+    if (!state) return;
+    const s = state.stats || {}, q = state.qzone || {}, pending = state.pending_requests || [];
+    $("metric-total").textContent = count(s.total_pokes);
+    $("metric-daily").textContent = count(s.daily_pokes);
+    $("metric-day").textContent = "统计日：" + (s.stats_day || "暂无数据");
+    $("metric-groups").textContent = count(s.group_count);
+    $("metric-users").textContent = "参与用户 " + count(s.user_count);
+    $("metric-pending").textContent = count(q.pending_count);
+    $("metric-qzone").textContent = q.enabled ? (q.dry_run ? "只读测试队列" : "真实点赞队列") : "空间扫描未启用";
+    const rows = [
+      ["@Bot 唤醒 LLM", state.settings.self_mention_wakeup_enabled],
+      ["@Bot 命令免 LLM", state.settings.at_command_suppress_llm_enabled],
+      ["群聊关键词唤醒", state.settings.keyword_wakeup_enabled],
+      ["LLM 主动 @ 工具", state.settings.mention_tool_enabled],
+      ["LLM 禁言工具", state.settings.mute_tool_enabled],
+      ["入群欢迎", state.settings.welcome_enabled],
+      ["好友申请自动同意", state.settings.auto_accept_friend_request],
+      ["Poke 统计", state.settings.poke_stats_enabled],
+      ["QQ 空间自动扫描", q.enabled]
+    ];
+    const list = $("feature-list");
+    list.replaceChildren();
+    for (const [name, on] of rows) {
+      const row = el("div", undefined, "feature");
+      row.append(el("strong", name), el("span", on ? "已启用" : "已关闭", "pill" + (on ? " on" : "")));
+      list.append(row);
+    }
+    $("request-summary").textContent = pending.length ? "当前有 " + pending.length + " 条请求等待审批。" : "暂无待处理请求。";
+  }
+  function renderRequests() {
+    const rows = state?.pending_requests || [];
+    $("request-count").textContent = rows.length + " 条";
+    table($("requests-table"), ["编号", "类型", "申请人", "群聊", "验证信息", "时间", "操作"], rows.map(r => {
+      const actions = el("div", undefined, "actions");
+      const yes = el("button", "同意", "btn small"), no = el("button", "拒绝", "btn small danger");
+      yes.type = no.type = "button";
+      yes.dataset.requestApprove = r.request_id;
+      no.dataset.requestReject = r.request_id;
+      actions.append(yes, no);
+      return [r.request_id, r.kind === "friend" ? "好友申请" : "群邀请",
+        (r.nickname || "未知") + "（" + (r.user_id || "—") + "）",
+        r.group_id ? (r.group_name || "群") + "（" + r.group_id + "）" : "—",
+        r.comment || "无", r.created_at || "—", actions];
+    }), "暂无待处理请求。");
+  }
+  $("requests-table").addEventListener("click", async event => {
+    const button = event.target.closest("button");
+    if (!button || busy || !consoleAvailable() || state.runtime.onebot_client_available !== true) return;
+    const approveId = button.dataset.requestApprove, rejectId = button.dataset.requestReject;
+    const id = approveId || rejectId, approve = !!approveId;
+    if (!id) return;
+    await runAction(async () => {
+      try {
+        if (!await askConfirmation((approve ? "同意" : "拒绝") + "申请 " + id,
+          "此操作会直接调用 OneBot 处理该申请。确定继续吗？")) return;
+        const result = unwrap(await bridge.apiPost(ROUTES.requestReview, {
+          request_id: id, approve, confirm: true
+        }));
+        if (result?.status !== "ok") throw Error("审批响应格式不正确");
+        const next = validateState(result.state);
+        if (next.pending_requests.some(row => row.request_id === id)) throw Error("审批结果尚未确认，请刷新后重试");
+        applyState(next);
+        notify(result.message || "审批已完成。");
+      } catch (e) { notify("审批失败：" + errorText(e), true); }
+    });
+  });
+
+  function renderPokeRanks() {
+    if (!state) return;
+    const ranks = state.poke_ranks || {};
+    for (const [key, id] of [["daily_users", "poke-daily-users"], ["history_users", "poke-history-users"],
+      ["daily_groups", "poke-daily-groups"], ["history_groups", "poke-history-groups"]]) {
+      const user = key.endsWith("_users");
+      const rows = (ranks[key] || []).map((r, i) =>
+        [i + 1, r.name || "—", r.id || r.label || "—", r.count + " 次"]);
+      table($(id), ["排名", user ? "QQ 昵称" : "群名称", user ? "QQ 号" : "群号", "次数"], rows, "暂无统计数据。");
+    }
+  }
+  async function loadPokeRanks() {
+    if (!ready || !stateFresh || !state) return false;
+    const snapshot = state;
+    if (rankLoad?.snapshot === snapshot) return rankLoad.promise;
+    const hint = $("poke-name-hint");
+    hint.textContent = "正在查询排行榜昵称和群名…";
+    const task = {snapshot, promise: null};
+    rankLoad = task;
+    task.promise = (async () => {
+      try {
+        const ranks = unwrap(await bridge.apiGet(ROUTES.pokeRanks));
+        if (!validRanks(ranks)) throw Error("排行数据格式不正确");
+        if (state === snapshot && stateFresh) {
+          state.poke_ranks = ranks;
+          renderPokeRanks();
+          hint.textContent = "显示 QQ 昵称与完整 QQ 号；昵称不可用时保留号码。";
+        }
+        return true;
+      } catch (e) {
+        if (state === snapshot && stateFresh) hint.textContent = "昵称查询暂不可用，已保留完整号码。";
+        return false;
+      } finally {
+        if (rankLoad === task) rankLoad = null;
+      }
+    })();
+    return task.promise;
+  }
+
+  function renderQzone() {
+    if (!state) return;
+    const q = state.qzone || {};
+    $("qzone-seen").textContent = count(q.seen_count);
+    $("qzone-queue").textContent = count(q.pending_count);
+    $("qzone-liked").textContent = count(q.liked);
+    $("qzone-failed").textContent = "失败 " + count(q.failed);
+    $("qzone-friends").textContent = count(q.friend_count);
+    $("qzone-last-scan").textContent = "上次扫描：" + (q.last_scan || "尚未扫描");
+    $("qzone-mode").textContent = !q.enabled ? "未启用" : q.dry_run ? "只读测试" : "真实点赞";
+    $("qzone-mode").className = "pill" + (q.enabled ? (q.dry_run ? " warn" : " on") : "");
+    const details = $("qzone-details");
+    details.replaceChildren();
+    for (const [label, value] of [["后台任务", q.running ? "运行中" : "未运行"],
+      ["已初始化来源", q.initialized_count || 0], ["只读测试计数", q.dry_count || 0],
+      ["暂停剩余", (q.suspended_seconds || 0) + " 秒"], ["最近错误", q.last_error || "无"]]) {
+      const row = el("div", undefined, "stat-line");
+      row.append(el("span", label), el("strong", value));
+      details.append(row);
+    }
+  }
+  $("qzone-scan").addEventListener("click", async () => {
+    if (busy || !scanAvailable()) return;
+    const real = state.qzone.dry_run === false;
+    await runAction(async () => {
+      try {
+        if (real && !await askConfirmation("确认真实点赞扫描",
+          "当前为真实点赞模式。手动扫描可能会代表 Bot 给好友新说说点赞，确认继续吗？")) return;
+        const r = unwrap(await bridge.apiPost(ROUTES.scan, {confirm_side_effects: real}));
+        if (r?.status !== "ok" || !object(r.summary) || !["new", "queued", "attempted", "liked", "failed"].every(key => integer(r.summary[key]))) throw Error("扫描响应格式不正确");
+        applyState(validateState(r.state));
+        const s = r.summary;
+        notify("扫描完成：新发现 " + count(s.new) + " 条，入队 " + count(s.queued) +
+          " 条，尝试 " + count(s.attempted) + " 条，成功 " + count(s.liked) + " 条，失败 " + count(s.failed) + " 条。");
+      } catch (e) { notify("扫描失败：" + errorText(e), true); }
+    });
+  });
+
+  function action(label, key, id, danger = false) {
+    const button = el("button", label, "text-btn" + (danger ? " danger" : ""));
+    button.type = "button";
+    button.dataset[key] = id;
+    return button;
+  }
+  function renderMilestones() {
+    if (!milestoneState) return;
+    const labels = {success: "成功", failed: "失败", unknown: "未知", pending: "执行中"};
+    $("milestone-rule-summary").textContent = "共 " + milestoneState.rules.length + " 条，" +
+      milestoneState.rules.filter(rule => rule.enabled).length + " 条已启用。";
+    table($("milestone-rules"), ["规则名称", "目标次数", "禁言", "LLM 回复", "状态", "操作"], milestoneState.rules.map(r => {
+      const actions = el("div", undefined, "actions");
+      actions.append(action("编辑", "edit", r.id), action(r.enabled ? "停用" : "启用", "toggle", r.id), action("删除", "delete", r.id, true));
+      const status = el("span", r.enabled ? "启用" : "停用", "pill" + (r.enabled ? " on" : ""));
+      return [r.name, r.target + " 次（±" + r.tolerance + "）", r.mute_minutes + " 分钟",
+        r.llm_enabled ? "开启" : "关闭", status, actions];
+    }), "暂无规则。点击“新增规则”创建第一条规则。");
+    table($("milestone-history"), ["时间", "群 / 用户", "规则", "触发次数", "结果", "说明"], milestoneState.history.slice(0, 100).map(h => {
+      const status = el("span", labels[h.status] || "未知", "pill" + (h.status === "success" ? " on" : h.status === "pending" || h.status === "failed" ? " warn" : ""));
+      return [String(h.created_at || "—").replace("T", " ").slice(0, 19),
+        (h.group_id || "—") + " / " + (h.user_id || "—"), h.rule_name || h.rule_id || "—",
+        h.count == null ? "—" : h.count + " 次", status, h.detail || "—"];
+    }), "暂无执行记录。");
+  }
+  function applyMilestones(next) {
+    milestoneState = next;
+    milestonesFresh = true;
+    milestoneReadError = "";
+    renderMilestones();
+    syncControls();
+  }
+  async function postMilestones(route, payload) {
+    const result = validateMilestones(await bridge.apiPost(route, payload));
+    ensureMilestoneResult(route, payload, result);
+    applyMilestones(result);
+  }
+  $("milestone-global").addEventListener("change", async event => {
+    const enabled = event.target.checked;
+    // The UI shows only the last verified persisted value; cancellation,
+    // rejected requests and malformed responses cannot leave it optimistic.
+    event.target.checked = !!milestoneState?.enabled;
+    if (busy || !milestoneAvailable()) return;
+    await runAction(async () => {
+      try {
+        if (enabled && !await askConfirmation("开启自动禁言",
+          "开启后可能在 QQ 群内自动禁言成员。请确认已检查各项规则和 Bot 群管理权限。")) return;
+        await postMilestones(ROUTES.milestoneSettings, {enabled, confirm_side_effects: enabled});
+        notify(enabled ? "里程碑自动禁言已开启。" : "里程碑自动禁言已关闭。");
+      } catch (e) { notify("里程碑操作失败：" + errorText(e), true); }
+    });
+  });
+  function openMilestone(rule) {
+    if (busy || !consoleAvailable()) return;
+    if (pendingNewRule) {
+      if (rule) { notify("请先通过“新增规则”核对上次新增结果，再编辑其他规则。", true); return; }
+      editorDialog.showModal();
+      return;
+    }
+    if (!milestoneAvailable()) return;
+    milestoneForm.reset();
+    const f = milestoneForm.elements;
+    for (const [key, value] of Object.entries({id: rule?.id || "", name: rule?.name || "",
+      target: rule?.target ?? 30, tolerance: rule?.tolerance ?? 2,
+      mute_minutes: rule?.mute_minutes ?? 1, prompt: rule?.prompt || ""})) {
+      f[key].value = value;
+    }
+    f.enabled.checked = rule?.enabled !== false;
+    f.llm_enabled.checked = rule?.llm_enabled === true;
+    $("milestone-dialog-title").textContent = rule ? "编辑里程碑规则" : "新增里程碑规则";
+    $("milestone-form-error").hidden = true;
+    editorDialog.showModal();
+  }
+  $("milestone-add").addEventListener("click", () => openMilestone(null));
+  for (const id of ["milestone-close", "milestone-cancel"]) {
+    $(id).addEventListener("click", () => { if (!busy) editorDialog.close(); });
+  }
+  editorDialog.addEventListener("cancel", event => { if (busy) event.preventDefault(); });
+  function editorError(text) {
+    $("milestone-form-error").textContent = text;
+    $("milestone-form-error").hidden = false;
+  }
+  milestoneForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (busy || !milestoneAvailable() || pendingNewRule || !milestoneForm.reportValidity()) return;
+    const f = milestoneForm.elements;
+    const payload = {
+      name: f.name.value.trim(), target: Number(f.target.value),
+      tolerance: Number(f.tolerance.value), mute_minutes: Number(f.mute_minutes.value),
+      enabled: f.enabled.checked, llm_enabled: f.llm_enabled.checked, prompt: f.prompt.value.trim()
+    };
+    if (!payload.name) { editorError("请输入规则名称。"); return; }
+    if (f.id.value) payload.id = f.id.value;
+    await runAction(async () => {
+      try {
+        const sideEffects = milestoneState.enabled && payload.enabled;
+        if (sideEffects && !await askConfirmation("保存启用状态的规则",
+          "当前总开关已开启，保存后可能触发真实群禁言。请确认继续。")) return;
+        payload.confirm_side_effects = sideEffects;
+        $("milestone-form-error").hidden = true;
+        const draft = !payload.id ? {beforeIds: new Set(milestoneState.rules.map(r => r.id)), payload: {...payload}} : null;
+        try {
+          await postMilestones(ROUTES.saveRule, payload);
+        } catch (e) {
+          // The POST may have been committed although the bridge lost or
+          // returned a malformed response. Never blindly retry creation.
+          if (draft && !(e instanceof ApiFailure)) pendingNewRule = draft;
+          throw e;
+        }
+        editorDialog.close();
+        notify("里程碑规则已保存。");
+      } catch (e) {
+        editorError(pendingNewRule ?
+          "新增结果尚未确认：" + errorText(e) + "。草稿已保留。请先点击“刷新核对结果”，避免创建重复规则。" :
+          "保存失败：" + errorText(e) + "。编辑内容已保留。");
+      }
+    });
+  });
+  $("milestone-reconcile").addEventListener("click", async () => {
+    if (busy || !pendingNewRule || !consoleAvailable()) return;
+    await runAction(async () => {
+      if (!await loadMilestones()) {
+        editorError("核对失败：" + milestoneReadError + "。草稿已保留，请重试核对。");
+        return;
+      }
+      const matches = newRuleMatches(milestoneState, pendingNewRule);
+      if (matches.length === 1) {
+        pendingNewRule = null;
+        editorDialog.close();
+        notify("刷新已核对到本次新建规则，不需要再次创建。");
+      } else if (matches.length === 0) {
+        pendingNewRule = null;
+        editorError("刷新未发现与草稿一致的新规则；已保留草稿，可以再保存一次。");
+      } else {
+        editorError("刷新发现多条与草稿一致的新规则，无法自动确定结果。请关闭编辑器检查规则列表，避免重复创建。");
+      }
+    });
+  });
+  $("milestone-rules").addEventListener("click", async event => {
+    const button = event.target.closest("button");
+    if (!button || busy || !milestoneAvailable()) return;
+    const id = button.dataset.edit || button.dataset.toggle || button.dataset.delete;
+    const rule = milestoneState?.rules.find(r => r.id === id);
+    if (!rule) return;
+    if (button.dataset.edit) { openMilestone(rule); return; }
+    await runAction(async () => {
+      try {
+        if (button.dataset.toggle) {
+          const enabled = !rule.enabled, sideEffects = enabled && milestoneState.enabled;
+          if (sideEffects && !await askConfirmation("启用规则",
+            "当前总开关已开启；启用规则“" + rule.name + "”后可能触发群禁言。确认继续吗？")) return;
+          await postMilestones(ROUTES.toggleRule, {id, enabled, confirm_side_effects: sideEffects});
+          notify("规则状态已更新。");
+        } else if (button.dataset.delete) {
+          if (!await askConfirmation("删除规则", "确定删除规则“" + rule.name + "”吗？")) return;
+          await postMilestones(ROUTES.deleteRule, {id});
+          notify("规则已删除。");
+        }
+      } catch (e) { notify("里程碑操作失败：" + errorText(e), true); }
+    });
+  });
+
+  function applyState(next, savedForm) {
+    state = next;
+    stateFresh = true;
+    stateReadError = "";
+    fillSettings(savedForm);
+    renderOverview();
+    renderRequests();
+    renderQzone();
+    renderPokeRanks();
+    setPluginStatus("插件已加载 · 控制中心在线", "ready");
+    syncControls();
+    if (activeView === "poke") void loadPokeRanks();
+  }
+  async function loadState() {
+    try {
+      applyState(validateState(await bridge.apiGet(ROUTES.state)));
+      return true;
+    } catch (e) {
+      stateFresh = false;
+      stateReadError = errorText(e);
+      setPluginStatus(state ? "读取失败 · 显示上次数据" : "连接失败", "error");
+      syncControls();
+      return false;
+    }
+  }
+  async function loadMilestones() {
+    try {
+      applyMilestones(validateMilestones(await bridge.apiGet(ROUTES.milestones)));
+      return true;
+    } catch (e) {
+      milestonesFresh = false;
+      milestoneReadError = errorText(e);
+      if (!milestoneState) {
+        $("milestone-rules").replaceChildren(el("div", "里程碑数据不可用，请刷新或检查插件日志。", "empty"));
+        $("milestone-history").replaceChildren(el("div", "执行记录不可用。", "empty"));
+      } else {
+        $("milestone-rule-summary").textContent = "读取失败 · 显示上次数据，请刷新。";
+      }
+      syncControls();
+      return false;
+    }
+  }
+  async function refresh(initial = false) {
+    if (busy || !bridge) return;
+    await runAction(async () => {
+      try {
+        if (!ready) { await bridge.ready(); ready = true; }
+        setPluginStatus("正在读取插件状态…", "loading");
+        // Both APIs are independent. Always attempt both, even if one fails.
+        const [stateOk, milestoneOk] = await Promise.all([loadState(), loadMilestones()]);
+        const errors = [];
+        if (!stateOk) errors.push("读取控制中心失败：" + stateReadError);
+        if (!milestoneOk) errors.push("读取里程碑失败：" + milestoneReadError);
+        if (errors.length) notify(errors.join("；"), true);
+        else if (!initial) notify("状态已刷新。未保存的修改已保留。");
+      } catch (e) {
+        stateFresh = milestonesFresh = false;
+        setPluginStatus("连接失败", "error");
+        notify("页面初始化失败：" + errorText(e), true);
+      }
+    });
+  }
+  $("refresh").addEventListener("click", () => { void refresh(); });
+  syncControls();
+  if (!bridge) {
+    setPluginStatus("页面未连接", "error");
+    notify("AstrBot 页面桥接未加载，请从 AstrBot 原生插件 View 打开。", true);
+  } else {
+    if (typeof bridge.onContext === "function") {
+      bridge.onContext(c => { document.documentElement.dataset.theme = c?.isDark ? "dark" : "light"; });
+    }
+    void refresh(true);
+  }
 })();
 </script>
 </body>

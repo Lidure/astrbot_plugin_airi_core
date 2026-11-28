@@ -10,7 +10,7 @@
 
 <p>
   <a href="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml"><img src="https://github.com/Lidure/astrbot_plugin_airi_core/actions/workflows/tests.yml/badge.svg" alt="Tests" /></a>
-  <img src="https://img.shields.io/badge/version-v1.4.2-f08aab?style=flat" alt="Version v1.4.2" />
+  <img src="https://img.shields.io/badge/version-v1.5.0-f08aab?style=flat" alt="Version v1.5.0" />
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.12-5575ad?style=flat" alt="Python 3.10 / 3.12 CI" />
   <img src="https://img.shields.io/badge/AstrBot-Plugin-805ad5?style=flat" alt="AstrBot Plugin" />
   <img src="https://img.shields.io/badge/OneBot-v11-49a6a6?style=flat" alt="OneBot v11" />
@@ -384,6 +384,7 @@ sudo apt install -y fonts-noto-cjk
 
 | 版本 | 重点改进 |
 | :--- | :--- |
+| **v1.5.0** | 重构桌面端原生控制中心；修复 AstrBot iframe 沙箱内确认操作与刷新后自动禁言开关锁定，改进配置草稿、状态同步及失败恢复；新增真实 Chromium 浏览器回归测试 |
 | **v1.4.2** | 管理控制中心 Poke 排行显示 QQ 昵称、完整 QQ 号、群名称和完整群号；按需读取并缓存名称 |
 | **v1.4.1** | 新增常驻 Airi 控制中心，统一管理插件可视化配置、状态、好友/群邀请审批、Poke 排行与里程碑、QQ 空间扫描；保存后即时应用，危险操作二次确认 |
 | **v1.3.30** | 新增 AstrBot Poke 里程碑原生 View；支持随机阈值、基于群权限的自动禁言与可选 LLM 场景回复 |
