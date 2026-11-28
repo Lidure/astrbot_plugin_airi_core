@@ -1,3 +1,4 @@
+import re
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
@@ -78,6 +79,16 @@ class AiriControlCenterViewTests(unittest.TestCase):
         self.assertIn('QQ 号', self.source)
         self.assertIn('群名称', self.source)
         self.assertNotIn('QQ 号做脱敏展示', self.source)
+
+    def test_sandboxed_view_never_uses_native_modal_dialogs(self):
+        # AstrBot's real plugin-view iframe has allow-scripts, allow-forms and
+        # allow-downloads, but deliberately not allow-modals. Browser-global
+        # confirm/alert/prompt cannot work here.
+        native_modal = re.search(r"(?<![\w$])(?:confirm|alert|prompt)\s*\(", self.source)
+        self.assertIsNone(
+            native_modal,
+            "Use an accessible in-page dialog for confirmation in the sandboxed View",
+        )
 
     def test_no_separate_poke_only_view_remains(self):
         old_view = VIEW.parents[1] / "poke-milestones"
